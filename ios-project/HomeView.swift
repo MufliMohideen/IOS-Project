@@ -63,13 +63,76 @@ struct HomeView: View {
 
                     Spacer()
 
-                    Text("v1.0")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.2))
+                    MadeWithHeartLabel()
                         .padding(.bottom, 24)
                 }
             }
             .navigationBarHidden(true)
+        }
+    }
+}
+
+// MARK: - Made With Heart Label
+
+private struct MadeWithHeartLabel: View {
+    @State private var heartScale: CGFloat = 1.0
+    @State private var glowRadius: CGFloat = 4
+    @State private var glowOpacity: Double = 0.6
+
+    private let heartColor = Color(red: 1, green: 0.22, blue: 0.3)
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text("made with")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.22))
+
+            Image(systemName: "heart.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(heartColor)
+                .scaleEffect(heartScale)
+                .shadow(color: heartColor.opacity(glowOpacity), radius: glowRadius)
+
+            Text("by Mufli Mohideen")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.22))
+        }
+        .onAppear { beatLoop() }
+    }
+
+    private func beatLoop() {
+        // First beat — quick pump up
+        withAnimation(.easeOut(duration: 0.12)) {
+            heartScale  = 1.35
+            glowRadius  = 10
+            glowOpacity = 1.0
+        }
+        // Settle back
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) {
+                heartScale  = 1.0
+                glowRadius  = 4
+                glowOpacity = 0.5
+            }
+        }
+        // Second beat (the lub-dub double beat feel)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+            withAnimation(.easeOut(duration: 0.10)) {
+                heartScale  = 1.22
+                glowRadius  = 8
+                glowOpacity = 0.9
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
+                heartScale  = 1.0
+                glowRadius  = 4
+                glowOpacity = 0.5
+            }
+        }
+        // Rest, then repeat
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            beatLoop()
         }
     }
 }

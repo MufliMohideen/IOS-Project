@@ -96,6 +96,8 @@ struct LightItUpView: View {
     @State private var levelUpColor: Color = .blue
     @State private var isNewHighScore: Bool = false
 
+    @State private var showHelp: Bool = false
+
     @State private var mainTimer: Timer?
     @State private var litTimer: Timer?
 
@@ -129,6 +131,18 @@ struct LightItUpView: View {
         .navigationBarHidden(true)
         .onAppear { startGame() }
         .onDisappear { stopTimers() }
+        .sheet(isPresented: $showHelp) {
+            HelpView(game: .lightItUp)
+        }
+        .onChange(of: showHelp) { isShowing in
+            if isShowing {
+                mainTimer?.invalidate()
+                litTimer?.invalidate()
+            } else if isGameActive {
+                startMainTimer()
+                startLitTimer(for: currentLevel)
+            }
+        }
     }
 
     // MARK: - Gameplay View
@@ -155,6 +169,21 @@ struct LightItUpView: View {
                     )
                 }
                 Spacer()
+
+                // Help button
+                Button(action: { showHelp = true }) {
+                    Image(systemName: "questionmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white.opacity(0.55))
+                        .frame(width: 34, height: 34)
+                        .background(
+                            Circle()
+                                .fill(Color.white.opacity(0.07))
+                                .overlay(Circle().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                        )
+                }
+                .padding(.trailing, 8)
+
                 // Level indicator
                 Text(currentLevel.name)
                     .font(.system(size: 12, weight: .bold, design: .rounded))

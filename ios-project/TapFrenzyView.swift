@@ -73,6 +73,9 @@ struct TapFrenzyView: View {
     @State private var pendingMode: GameMode? = nil
     @State private var showModeSwitchAlert: Bool = false
 
+    // Help
+    @State private var showHelp: Bool = false
+
     // Streak state
     @State private var streakCount: Int = 0
     @State private var lastTapTime: Date? = nil
@@ -145,6 +148,24 @@ struct TapFrenzyView: View {
         .navigationBarHidden(true)
         .onAppear { startGame() }
         .onDisappear { stopTimers() }
+        .sheet(isPresented: $showHelp) {
+            HelpView(game: .tapFrenzy)
+        }
+        .onChange(of: showHelp) { isShowing in
+            if isShowing {
+                // Pause all timers while help is open
+                gameTimer?.invalidate()
+                trapTimer?.invalidate()
+                ghostTimer?.invalidate()
+            } else if isGameActive {
+                // Resume — restart each timer that was running
+                startGameTimer()
+                startTrapTimer()
+                if gameMode == .ghost && !previousRunScorecard.isEmpty {
+                    startGhostTimer()
+                }
+            }
+        }
         .alert("Switch Mode?", isPresented: $showModeSwitchAlert) {
             Button("Switch & Restart", role: .destructive) {
                 if let next = pendingMode {
@@ -188,6 +209,20 @@ struct TapFrenzyView: View {
                 }
 
                 Spacer()
+
+                // Help button
+                Button(action: { showHelp = true }) {
+                    Image(systemName: "questionmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white.opacity(0.55))
+                        .frame(width: 34, height: 34)
+                        .background(
+                            Circle()
+                                .fill(Color.white.opacity(0.07))
+                                .overlay(Circle().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                        )
+                }
+                .padding(.trailing, 8)
 
                 // 3-way mode toggle
                 HStack(spacing: 0) {
