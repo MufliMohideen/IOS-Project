@@ -575,8 +575,8 @@ struct LightItUpView: View {
         isGameActive = false
         SoundManager.shared.playGameOver()
         SoundManager.shared.heavyHaptic()
-        if score > scoreStore.lightItUpBest {
-            scoreStore.updateLightItUp(score)
+        scoreStore.updateLightItUp(score)
+        if score >= scoreStore.lightItUpBest {
             isNewHighScore = true
             SoundManager.shared.successHaptic()
             SoundManager.shared.playSuccess()

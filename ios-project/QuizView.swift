@@ -99,10 +99,8 @@ struct QuizView: View {
         }
         .onChange(of: viewModel.isGameOver) { over in
             if over {
+                scoreStore.updateQuizRush(viewModel.score)
                 viewModel.markHighScore(current: scoreStore.quizRushBest)
-                if viewModel.isNewHighScore {
-                    scoreStore.updateQuizRush(viewModel.score)
-                }
             }
         }
     }

@@ -744,7 +744,6 @@ struct TapFrenzyView: View {
     func buttonTapped() {
         guard isGameActive else { return }
         SoundManager.shared.tapHaptic()
-        SoundManager.shared.playTap()
         animateButtonPress()
 
         switch gameMode {
@@ -860,8 +859,8 @@ struct TapFrenzyView: View {
                 isGameActive = false
                 SoundManager.shared.playGameOver()
                 SoundManager.shared.heavyHaptic()
-                if score > scoreStore.tapFrenzyBest {
-                    scoreStore.updateTapFrenzy(score)
+                scoreStore.updateTapFrenzy(score)
+                if score >= scoreStore.tapFrenzyBest {
                     isNewHighScore = true
                     SoundManager.shared.successHaptic()
                     SoundManager.shared.playSuccess()

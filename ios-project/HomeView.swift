@@ -18,6 +18,7 @@ private enum T {
 
 struct HomeView: View {
     @EnvironmentObject var scoreStore: ScoreStore
+    @State private var showScores = false
 
     var body: some View {
         NavigationStack {
@@ -25,6 +26,30 @@ struct HomeView: View {
                 HomeBackground()
 
                 VStack(spacing: 0) {
+                    // Top bar
+                    HStack {
+                        Spacer()
+                        Button(action: { showScores = true }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "trophy.fill")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text("SCORES")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .tracking(1)
+                            }
+                            .foregroundColor(T.highlight)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                Capsule()
+                                    .fill(T.highlight.opacity(0.12))
+                                    .overlay(Capsule().strokeBorder(T.highlight.opacity(0.35), lineWidth: 1))
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 58)
+
                     // Header
                     VStack(spacing: 8) {
                         Text("TAP ARENA")
@@ -38,8 +63,8 @@ struct HomeView: View {
                             .foregroundColor(T.secondary)
                             .tracking(4)
                     }
-                    .padding(.top, 64)
-                    .padding(.bottom, 44)
+                    .padding(.top, 20)
+                    .padding(.bottom, 36)
 
                     // Game cards
                     VStack(spacing: 18) {
@@ -85,7 +110,249 @@ struct HomeView: View {
                 }
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showScores) {
+                HighScoresView(
+                    tapBest:     scoreStore.tapFrenzyBest,
+                    litBest:     scoreStore.lightItUpBest,
+                    quizBest:    scoreStore.quizRushBest,
+                    tapHistory:  scoreStore.tapFrenzyHistory,
+                    litHistory:  scoreStore.lightItUpHistory,
+                    quizHistory: scoreStore.quizRushHistory
+                )
+            }
         }
+    }
+}
+
+// MARK: - High Scores View (full sheet)
+
+private struct HighScoresView: View {
+    let tapBest:     Int
+    let litBest:     Int
+    let quizBest:    Int
+    let tapHistory:  [ScoreEntry]
+    let litHistory:  [ScoreEntry]
+    let quizHistory: [ScoreEntry]
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedGame: Int = 0
+
+    private let games: [(name: String, icon: String, unit: String)] = [
+        ("TAP FRENZY",  "hand.tap.fill",            "TAPS"),
+        ("LIGHT IT UP", "bolt.fill",                 "POINTS"),
+        ("QUIZ RUSH",   "questionmark.circle.fill",  "POINTS"),
+    ]
+
+    private var bestScores: [Int]         { [tapBest, litBest, quizBest] }
+    private var histories:  [[ScoreEntry]] { [tapHistory, litHistory, quizHistory] }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            T.bg.ignoresSafeArea()
+            LinearGradient(
+                colors: [T.accent.opacity(0.11), Color.clear],
+                startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.4)
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 6) {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(T.highlight)
+                        .shadow(color: T.highlight.opacity(0.5), radius: 10)
+                    Text("HIGH SCORES")
+                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                        .tracking(4)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 36)
+                .padding(.bottom, 24)
+
+                // Game selector
+                HStack(spacing: 0) {
+                    ForEach(games.indices, id: \.self) { i in
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedGame = i
+                            }
+                        }) {
+                            VStack(spacing: 5) {
+                                Image(systemName: games[i].icon)
+                                    .font(.system(size: 16, weight: .bold))
+                                Text(games[i].name)
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .tracking(0.5)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+                            .foregroundColor(selectedGame == i ? .black : T.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(selectedGame == i ? T.accent : Color.clear)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(6)
+                .background(RoundedRectangle(cornerRadius: 16).fill(T.surface))
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+
+                // Personal best hero
+                let best = bestScores[selectedGame]
+                let unit = games[selectedGame].unit
+
+                VStack(spacing: 4) {
+                    if best == 0 {
+                        Text("NO GAMES PLAYED YET")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(T.secondary.opacity(0.5))
+                            .tracking(2)
+                            .padding(.vertical, 8)
+                    } else {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(T.highlight)
+                            Text("PERSONAL BEST")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundColor(T.highlight)
+                                .tracking(2)
+                        }
+                        Text("\(best)")
+                            .font(.system(size: 56, weight: .heavy, design: .rounded))
+                            .foregroundColor(.white)
+                            .shadow(color: T.accent.opacity(0.45), radius: 14)
+                            .contentTransition(.numericText())
+                        Text(unit)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundColor(T.secondary)
+                            .tracking(3)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 16)
+
+                Rectangle()
+                    .fill(T.surface)
+                    .frame(height: 1)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
+
+                // History list
+                let history = histories[selectedGame]
+                if history.isEmpty {
+                    Spacer()
+                    VStack(spacing: 10) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 32))
+                            .foregroundColor(T.secondary.opacity(0.35))
+                        Text("No history yet — play a game!")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(T.secondary.opacity(0.45))
+                    }
+                    Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(history.enumerated()), id: \.element.id) { idx, entry in
+                                HistoryRow(rank: idx + 1, entry: entry, unit: unit, isBest: entry.score == best)
+                                if idx < history.count - 1 {
+                                    Rectangle()
+                                        .fill(T.surface)
+                                        .frame(height: 1)
+                                        .padding(.horizontal, 16)
+                                }
+                            }
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(T.card)
+                                .overlay(RoundedRectangle(cornerRadius: 18)
+                                    .strokeBorder(T.accent.opacity(0.18), lineWidth: 1))
+                        )
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 40)
+                    }
+                }
+            }
+
+            // Close button
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(T.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(T.surface))
+            }
+            .padding(.top, 18)
+            .padding(.trailing, 22)
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedGame)
+    }
+}
+
+private struct HistoryRow: View {
+    let rank: Int
+    let entry: ScoreEntry
+    let unit: String
+    let isBest: Bool
+
+    private let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(isBest ? T.accent.opacity(0.18) : T.surface)
+                    .frame(width: 34, height: 34)
+                if isBest {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(T.highlight)
+                } else {
+                    Text("\(rank)")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(T.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(formatter.string(from: entry.date))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(T.secondary)
+                if isBest {
+                    Text("PERSONAL BEST")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundColor(T.accent)
+                        .tracking(1)
+                }
+            }
+
+            Spacer()
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(entry.score)")
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .foregroundColor(isBest ? .white : T.secondary)
+                Text(unit.lowercased())
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundColor(T.secondary.opacity(0.6))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
