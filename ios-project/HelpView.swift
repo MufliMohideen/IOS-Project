@@ -4,6 +4,57 @@
 
 import SwiftUI
 
+// MARK: - Theme
+
+private enum T {
+    static let bg        = Color(red: 0.067, green: 0.067, blue: 0.067)
+    static let surface   = Color(red: 0.11,  green: 0.11,  blue: 0.118)
+    static let card      = Color(red: 0.173, green: 0.173, blue: 0.18)
+    static let accent    = Color(red: 0.545, green: 0.361, blue: 0.965)
+    static let highlight = Color(red: 0.655, green: 0.545, blue: 0.98)
+    static let secondary = Color(red: 0.69,  green: 0.69,  blue: 0.69)
+}
+
+// MARK: - Help Background
+
+private struct HelpBackground: View {
+    @State private var drift = false
+
+    var body: some View {
+        ZStack {
+            T.bg.ignoresSafeArea()
+
+            LinearGradient(
+                colors: [T.accent.opacity(0.12), T.accent.opacity(0.03), Color.clear],
+                startPoint: .top,
+                endPoint: UnitPoint(x: 0.5, y: 0.45)
+            )
+            .ignoresSafeArea()
+
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [Color(red: 0.38, green: 0.16, blue: 0.78).opacity(0.30), Color.clear],
+                    center: .center, startRadius: 0, endRadius: 180
+                ))
+                .frame(width: 280, height: 250)
+                .blur(radius: 70)
+                .offset(x: drift ? 140 : 120, y: drift ? -380 : -400)
+                .animation(.easeInOut(duration: 10).repeatForever(autoreverses: true), value: drift)
+
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [T.highlight.opacity(0.16), Color.clear],
+                    center: .center, startRadius: 0, endRadius: 150
+                ))
+                .frame(width: 240, height: 220)
+                .blur(radius: 65)
+                .offset(x: drift ? -120 : -100, y: drift ? 420 : 440)
+                .animation(.easeInOut(duration: 12).repeatForever(autoreverses: true), value: drift)
+        }
+        .onAppear { drift = true }
+    }
+}
+
 // MARK: - Game enum
 
 enum HelpGame {
@@ -19,12 +70,8 @@ struct HelpView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            LinearGradient(
-                colors: [Color(red: 0.06, green: 0.06, blue: 0.10),
-                         Color(red: 0.04, green: 0.04, blue: 0.08)],
-                startPoint: .top, endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            HelpBackground()
+
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
@@ -42,9 +89,9 @@ struct HelpView: View {
             Button(action: { dismiss() }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(T.secondary)
                     .frame(width: 34, height: 34)
-                    .background(Circle().fill(Color.white.opacity(0.1)))
+                    .background(Circle().fill(T.surface))
             }
             .padding(.top, 18)
             .padding(.trailing, 22)
@@ -76,7 +123,7 @@ private struct HelpHeader: View {
                 .tracking(3)
             Text(subtitle)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.45))
+                .foregroundColor(T.secondary)
                 .tracking(2)
                 .multilineTextAlignment(.center)
         }
@@ -97,10 +144,16 @@ private struct HelpSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundColor(accent)
-                .tracking(3)
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(accent)
+                    .frame(width: 3, height: 14)
+                    .clipShape(Capsule())
+                Text(title)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundColor(accent)
+                    .tracking(3)
+            }
 
             content
         }
@@ -122,16 +175,16 @@ private struct HelpRow: View {
                 .padding(.top, 1)
             Text(text)
                 .font(.system(size: 14, weight: .regular, design: .rounded))
-                .foregroundColor(.white.opacity(0.75))
+                .foregroundColor(T.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.05))
+                .fill(T.card)
                 .overlay(RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 1))
+                    .strokeBorder(iconColor.opacity(0.22), lineWidth: 1))
         )
     }
 }
@@ -235,9 +288,9 @@ private struct DemoTile: View {
             .fill(lit ? AnyShapeStyle(LinearGradient(
                 colors: [color.opacity(0.9), color.opacity(0.6)],
                 startPoint: .topLeading, endPoint: .bottomTrailing))
-                      : AnyShapeStyle(Color.white.opacity(0.07)))
+                      : AnyShapeStyle(T.card))
             .overlay(RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(lit ? color.opacity(0.8) : Color.white.opacity(0.1), lineWidth: 1.5))
+                .strokeBorder(lit ? color.opacity(0.8) : T.surface, lineWidth: 1.5))
             .shadow(color: lit ? color.opacity(0.5) : .clear, radius: lit ? 10 : 0)
             .scaleEffect(lit ? 1.06 : 1.0)
             .animation(.spring(response: 0.28, dampingFraction: 0.6), value: lit)
@@ -275,24 +328,24 @@ private struct ShrinkingButtonDemo: View {
 
                     Text("SHRINKS OVER TIME")
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.35))
+                        .foregroundColor(T.secondary.opacity(0.65))
                         .tracking(1)
                 }
                 .frame(maxWidth: .infinity)
 
                 // Divider
                 Rectangle()
-                    .fill(Color.white.opacity(0.08))
+                    .fill(T.card)
                     .frame(width: 1, height: 80)
 
                 // Timer bar + label
                 VStack(alignment: .leading, spacing: 8) {
                     Text("10s")
                         .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundColor(T.secondary)
 
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3).fill(Color.white.opacity(0.08))
+                        RoundedRectangle(cornerRadius: 3).fill(T.card)
                             .frame(height: 5)
                         RoundedRectangle(cornerRadius: 3)
                             .fill(Color(red: 1, green: 0.3, blue: 0.3))
@@ -301,16 +354,16 @@ private struct ShrinkingButtonDemo: View {
 
                     Text("TIME LEFT")
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.3))
+                        .foregroundColor(T.secondary.opacity(0.55))
                         .tracking(1)
 
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.down.right.and.arrow.up.left")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white.opacity(0.3))
+                            .foregroundColor(T.secondary.opacity(0.55))
                         Text("tap fast!")
                             .font(.system(size: 10, design: .rounded))
-                            .foregroundColor(.white.opacity(0.3))
+                            .foregroundColor(T.secondary.opacity(0.55))
                     }
                 }
                 .padding(.leading, 16)
@@ -320,7 +373,7 @@ private struct ShrinkingButtonDemo: View {
         }
         .frame(height: 148)
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 16).fill(T.surface))
     }
 }
 
@@ -343,13 +396,13 @@ private struct TrapColorDemo: View {
                         .tracking(1)
                     Text(effect)
                         .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(T.secondary)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 16).fill(T.surface))
     }
 }
 
@@ -370,13 +423,13 @@ private struct StreakLadderDemo: View {
                     let idx = steps.firstIndex(where: { $0.1 == label }) ?? 0
                     ZStack {
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(idx == active ? color.opacity(0.2) : Color.white.opacity(0.04))
+                            .fill(idx == active ? color.opacity(0.2) : T.surface)
                             .overlay(RoundedRectangle(cornerRadius: 10)
-                                .strokeBorder(idx == active ? color.opacity(0.7) : Color.white.opacity(0.08),
+                                .strokeBorder(idx == active ? color.opacity(0.7) : T.card,
                                               lineWidth: 1.5))
                         Text(label)
                             .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundColor(idx == active ? color : .white.opacity(0.25))
+                            .foregroundColor(idx == active ? color : T.secondary.opacity(0.5))
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
@@ -386,10 +439,10 @@ private struct StreakLadderDemo: View {
             }
             Text("tap within 0.5s to keep your streak alive")
                 .font(.system(size: 10, design: .rounded))
-                .foregroundColor(.white.opacity(0.35))
+                .foregroundColor(T.secondary.opacity(0.65))
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 16).fill(T.surface))
         .onAppear { cycleStreak() }
     }
 
@@ -440,7 +493,7 @@ private struct GridTapDemo: View {
             .onAppear { movePointer() }
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 16).fill(T.surface))
     }
 
     private func movePointer() {
@@ -471,7 +524,7 @@ private struct LivesDemo: View {
                 ForEach(0..<3, id: \.self) { i in
                     Image(systemName: i < lives ? "heart.fill" : "heart")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(i < lives ? heartColor : Color.white.opacity(0.2))
+                        .foregroundColor(i < lives ? heartColor : T.surface)
                         .animation(.spring(response: 0.3, dampingFraction: 0.5), value: lives)
                 }
             }
@@ -479,17 +532,17 @@ private struct LivesDemo: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Miss a tile → lose a ♥")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.65))
+                    .foregroundColor(T.secondary)
                 Text("Tap wrong tile → lose a ♥")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.65))
+                    .foregroundColor(T.secondary)
                 Text("0 lives = game over")
                     .font(.system(size: 11, design: .rounded))
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundColor(T.secondary.opacity(0.65))
             }
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 16).fill(T.surface))
         .onAppear { cycleLives() }
     }
 
@@ -504,9 +557,9 @@ private struct LivesDemo: View {
 // MARK: - Tap Frenzy Help
 
 private struct TapFrenzyHelp: View {
-    private let red   = Color(red: 0.95, green: 0.25, blue: 0.25)
-    private let green = Color(red: 0.1,  green: 0.85, blue: 0.4)
-    private let blue  = Color(red: 0.3,  green: 0.8,  blue: 1.0)
+    private let accent = T.accent
+    private let green  = Color(red: 0.1,  green: 0.85, blue: 0.4)
+    private let blue   = Color(red: 0.3,  green: 0.8,  blue: 1.0)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -515,37 +568,37 @@ private struct TapFrenzyHelp: View {
                 icon: "hand.tap.fill",
                 title: "TAP FRENZY",
                 subtitle: "TAP FAST · AVOID TRAPS · BEAT THE CLOCK",
-                accent: red
+                accent: accent
             )
 
-            HelpSection("THE GOAL", accent: red) {
+            HelpSection("THE GOAL", accent: accent) {
                 HelpRow(icon: "target",
-                        iconColor: red,
+                        iconColor: accent,
                         text: "Tap the button as many times as you can in 10 seconds. The button shrinks as time runs out — tap before it disappears!")
             }
 
-            HelpSection("HOW IT WORKS", accent: red) {
+            HelpSection("HOW IT WORKS", accent: accent) {
                 VStack(spacing: 10) {
                     ShrinkingButtonDemo()
                     HelpRow(icon: "clock.fill",
-                            iconColor: .white.opacity(0.5),
+                            iconColor: T.highlight,
                             text: "You have 10 seconds. The button gets smaller every second, so get your taps in early.")
                 }
             }
 
-            HelpSection("BUTTON COLOURS", accent: red) {
+            HelpSection("BUTTON COLOURS", accent: accent) {
                 VStack(spacing: 10) {
                     TrapColorDemo()
                     HelpRow(icon: "exclamationmark.triangle.fill",
-                            iconColor: Color(red: 0.38, green: 0.38, blue: 0.42),
+                            iconColor: T.highlight,
                             text: "The button randomly switches colour. A label flashes briefly to warn you — react fast!")
                 }
             }
 
-            HelpSection("GAME MODES", accent: red) {
+            HelpSection("GAME MODES", accent: accent) {
                 VStack(spacing: 10) {
                     HelpRow(icon: "circle.fill",
-                            iconColor: red,
+                            iconColor: accent,
                             text: "NORMAL — tap as many times as possible. Simple and fast.")
                     HelpRow(icon: "flame.fill",
                             iconColor: blue,
@@ -554,12 +607,12 @@ private struct TapFrenzyHelp: View {
                         StreakLadderDemo()
                     }
                     HelpRow(icon: "figure.run",
-                            iconColor: .white.opacity(0.55),
+                            iconColor: T.highlight,
                             text: "GHOST — race against a replay of your previous run. A progress bar shows if you're ahead or behind.")
                 }
             }
 
-            HelpSection("TIPS", accent: red) {
+            HelpSection("TIPS", accent: accent) {
                 TipsBlock(tips: [
                     "Tap at the very start when the button is largest — you'll rack up the most points quickly.",
                     "In Streak mode, keep a steady rhythm. One long pause resets everything.",
@@ -602,7 +655,7 @@ private struct LevelRow: View {
                     .frame(width: 76, alignment: .leading)
             }
             .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundColor(.white.opacity(0.65))
+            .foregroundColor(T.secondary)
 
             Spacer(minLength: 0)
 
@@ -619,7 +672,7 @@ private struct LevelRow: View {
 
 private var levelDivider: some View {
     Rectangle()
-        .fill(Color.white.opacity(0.06))
+        .fill(T.card)
         .frame(height: 1)
         .padding(.horizontal, 14)
 }
@@ -640,7 +693,7 @@ private struct TipsBlock: View {
                         .padding(.top, 2)
                     Text(tip)
                         .font(.system(size: 13, weight: .regular, design: .rounded))
-                        .foregroundColor(.white.opacity(0.72))
+                        .foregroundColor(T.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
@@ -649,7 +702,7 @@ private struct TipsBlock: View {
 
                 if index < tips.count - 1 {
                     Rectangle()
-                        .fill(Color.white.opacity(0.06))
+                        .fill(T.card)
                         .frame(height: 1)
                         .padding(.horizontal, 14)
                 }
@@ -657,9 +710,9 @@ private struct TipsBlock: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
+                .fill(T.surface)
                 .overlay(RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 1))
+                    .strokeBorder(T.card, lineWidth: 1))
         )
     }
 }
@@ -679,23 +732,23 @@ private struct LightItUpHelp: View {
                 icon: "bolt.fill",
                 title: "LIGHT IT UP",
                 subtitle: "TAP THE GLOW · MOVE FAST · SURVIVE 60s",
-                accent: cyan
+                accent: T.highlight
             )
 
-            HelpSection("THE GOAL", accent: cyan) {
+            HelpSection("THE GOAL", accent: T.highlight) {
                 HelpRow(icon: "bolt.fill",
-                        iconColor: cyan,
+                        iconColor: T.highlight,
                         text: "Tiles randomly light up on a grid. Tap a glowing tile before it goes dark to score a point. Miss it and you lose a life.")
             }
 
-            HelpSection("HOW IT WORKS", accent: cyan) {
+            HelpSection("HOW IT WORKS", accent: T.highlight) {
                 VStack(spacing: 10) {
                     GridTapDemo()
                     HelpRow(icon: "square.grid.3x3.fill",
-                            iconColor: blue,
+                            iconColor: T.accent,
                             text: "A random tile lights up. You have a short window to tap it. If time runs out, that tile goes dark and you lose a life.")
                     HelpRow(icon: "hand.tap.fill",
-                            iconColor: cyan,
+                            iconColor: T.highlight,
                             text: "Tap the glowing tile to score +1. Tapping a dark tile is a wrong tap — also costs a life.")
                 }
             }
@@ -706,7 +759,7 @@ private struct LightItUpHelp: View {
                 }
             }
 
-            HelpSection("LEVELS", accent: orange) {
+            HelpSection("LEVELS", accent: T.accent) {
                 VStack(spacing: 0) {
                     LevelRow(number: "1", accent: blue,
                              time: "0 – 15s", tiles: "3 tiles",
@@ -726,13 +779,13 @@ private struct LightItUpHelp: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.05))
+                        .fill(T.surface)
                         .overlay(RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(Color.white.opacity(0.07), lineWidth: 1))
+                            .strokeBorder(T.card, lineWidth: 1))
                 )
             }
 
-            HelpSection("TIPS", accent: cyan) {
+            HelpSection("TIPS", accent: T.highlight) {
                 TipsBlock(tips: [
                     "Keep your thumb hovering near the centre of the grid — tiles can appear anywhere.",
                     "Don't panic-tap dark tiles. A wrong tap costs you the same as a miss.",

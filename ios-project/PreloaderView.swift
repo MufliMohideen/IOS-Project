@@ -4,12 +4,94 @@
 
 import SwiftUI
 
+// MARK: - Theme
+
+private enum T {
+    static let bg       = Color(red: 0.067, green: 0.067, blue: 0.067)
+    static let accent   = Color(red: 0.545, green: 0.361, blue: 0.965)
+    static let highlight = Color(red: 0.655, green: 0.545, blue: 0.98)
+    static let secondary = Color(red: 0.69,  green: 0.69,  blue: 0.69)
+}
+
+// MARK: - Layered Orb Background
+
+private struct PreloaderBackground: View {
+    @State private var rotate: Bool = false
+
+    var body: some View {
+        ZStack {
+            // Base
+            T.bg.ignoresSafeArea()
+
+            // Top-left deep purple orb
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.42, green: 0.18, blue: 0.82).opacity(0.55),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 220
+                    )
+                )
+                .frame(width: 420, height: 380)
+                .blur(radius: 60)
+                .offset(x: -80, y: -260)
+                .rotationEffect(.degrees(rotate ? 12 : -12))
+                .animation(
+                    .easeInOut(duration: 8).repeatForever(autoreverses: true),
+                    value: rotate
+                )
+
+            // Bottom-right violet orb
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.55, green: 0.35, blue: 0.98).opacity(0.40),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 200
+                    )
+                )
+                .frame(width: 360, height: 320)
+                .blur(radius: 55)
+                .offset(x: 100, y: 320)
+                .rotationEffect(.degrees(rotate ? -10 : 10))
+                .animation(
+                    .easeInOut(duration: 10).repeatForever(autoreverses: true),
+                    value: rotate
+                )
+
+            // Subtle center glow that syncs with title
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            T.accent.opacity(0.12),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 160
+                    )
+                )
+                .frame(width: 300, height: 180)
+                .blur(radius: 40)
+                .offset(y: -60)
+        }
+        .onAppear { rotate = true }
+    }
+}
+
 // MARK: - Tap Ripple Loading Animation
 
 private struct TapRippleLoader: View {
-    // Each ring has its own phase offset so they stagger naturally
     private let ringCount = 4
-    private let ringColor = Color(red: 1, green: 0.3, blue: 0.3)
 
     @State private var animating = false
     @State private var fingerScale: CGFloat = 1.0
@@ -17,38 +99,29 @@ private struct TapRippleLoader: View {
 
     var body: some View {
         ZStack {
-            // Ripple rings — each delayed by its index
             ForEach(0..<ringCount, id: \.self) { i in
                 RippleRing(
-                    color: ringColor,
+                    color: T.accent,
                     delay: Double(i) * 0.38,
                     animating: animating
                 )
             }
 
-            // Tap finger icon at center
             Image(systemName: "hand.tap.fill")
                 .font(.system(size: 22, weight: .bold))
-                .foregroundColor(ringColor)
+                .foregroundColor(T.accent)
                 .scaleEffect(fingerScale)
                 .opacity(fingerOpacity)
-                .shadow(color: ringColor.opacity(0.6), radius: 8)
+                .shadow(color: T.accent.opacity(0.6), radius: 8)
         }
         .frame(width: 120, height: 120)
         .onAppear {
             animating = true
-            // Finger pulses on each "tap" cycle (matches ripple period ~1.5s)
-            withAnimation(
-                .easeInOut(duration: 0.12)
-                .repeatForever(autoreverses: false)
-                .delay(0)
-            ) { }
             pulseFingerLoop()
         }
     }
 
     private func pulseFingerLoop() {
-        // Quick compress → release → hold, repeat every 1.52s (matches ring period)
         withAnimation(.easeIn(duration: 0.08)) {
             fingerScale   = 0.78
             fingerOpacity = 1.0
@@ -78,8 +151,6 @@ private struct RippleRing: View {
 
     @State private var scale: CGFloat  = 0.1
     @State private var opacity: Double = 0.0
-
-    // Each ring expands from near-zero to 1.8× over ~1.5s then resets
     private let duration = 1.52
 
     var body: some View {
@@ -97,25 +168,12 @@ private struct RippleRing: View {
     }
 
     private func startRipple() {
-        // Reset to starting state without animation
         scale   = 0.1
         opacity = 0.0
-
-        // Fade in quickly at small size
-        withAnimation(.easeOut(duration: 0.12)) {
-            opacity = 0.85
-        }
-        // Expand and fade out over full duration
-        withAnimation(.easeOut(duration: duration)) {
-            scale = 1.85
-        }
-        withAnimation(.easeIn(duration: duration * 0.75).delay(duration * 0.25)) {
-            opacity = 0
-        }
-        // Loop
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            startRipple()
-        }
+        withAnimation(.easeOut(duration: 0.12)) { opacity = 0.85 }
+        withAnimation(.easeOut(duration: duration)) { scale = 1.85 }
+        withAnimation(.easeIn(duration: duration * 0.75).delay(duration * 0.25)) { opacity = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { startRipple() }
     }
 }
 
@@ -137,7 +195,7 @@ private struct LoadLabel: View {
     var body: some View {
         Text(label)
             .font(.system(size: 10, weight: .semibold, design: .rounded))
-            .foregroundColor(Color(red: 1, green: 0.4, blue: 0.4).opacity(0.65))
+            .foregroundColor(T.highlight.opacity(0.7))
             .tracking(3)
     }
 }
@@ -151,25 +209,19 @@ struct PreloaderView: View {
     @State private var logoOpacity: Double     = 0
     @State private var subtitleOpacity: Double = 0
     @State private var pulseScale: CGFloat     = 1.0
-    @State private var pulseOpacity: Double    = 0.18
+    @State private var pulseOpacity: Double    = 0.12
     @State private var loaderOpacity: Double   = 0
     @State private var loadProgress: Double    = 0.0
 
     var body: some View {
         ZStack {
-            // Background
-            LinearGradient(
-                colors: [Color(red: 0.06, green: 0.06, blue: 0.10),
-                         Color(red: 0.04, green: 0.04, blue: 0.08)],
-                startPoint: .top, endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            PreloaderBackground()
 
-            // Pulsing circle behind title
+            // Soft accent pulse behind title
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: [Color(red: 0.9, green: 0.2, blue: 0.2).opacity(0.35), Color.clear],
+                        colors: [T.accent.opacity(0.22), Color.clear],
                         center: .center,
                         startRadius: 0,
                         endRadius: 180
@@ -184,25 +236,22 @@ struct PreloaderView: View {
                 )
 
             VStack(spacing: 18) {
-                // Title
                 Text("TAP ARENA")
                     .font(.system(size: 44, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
                     .tracking(6)
-                    .shadow(color: Color(red: 1, green: 0.3, blue: 0.3).opacity(0.6), radius: 20)
+                    .shadow(color: T.accent.opacity(0.55), radius: 20)
                     .scaleEffect(logoScale)
                     .opacity(logoOpacity)
 
                 Text("READY YOUR FINGERS")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(T.secondary)
                     .tracking(5)
                     .opacity(subtitleOpacity)
 
-                // Loading section
                 VStack(spacing: 14) {
                     TapRippleLoader()
-
                     LoadLabel(progress: loadProgress)
                 }
                 .opacity(loaderOpacity)
@@ -210,26 +259,21 @@ struct PreloaderView: View {
             }
         }
         .onAppear {
-            // Title entrance (original feel preserved)
             withAnimation(.spring(response: 0.7, dampingFraction: 0.65)) {
                 logoScale   = 1.0
                 logoOpacity = 1.0
             }
             withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
                 pulseScale   = 1.15
-                pulseOpacity = 0.28
+                pulseOpacity = 0.22
             }
             withAnimation(.easeIn(duration: 0.5).delay(0.55)) {
                 subtitleOpacity = 1.0
             }
-
-            // Loader fades in after title settles
             withAnimation(.easeIn(duration: 0.4).delay(0.7)) {
                 loaderOpacity = 1.0
             }
-
             simulateLoad()
-
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
                 onComplete()
             }
@@ -238,18 +282,12 @@ struct PreloaderView: View {
 
     private func simulateLoad() {
         let steps: [(Double, Double)] = [
-            (0.40, 0.18),
-            (0.70, 0.42),
-            (1.00, 0.61),
-            (1.30, 0.78),
-            (1.65, 0.92),
-            (2.00, 1.00)
+            (0.40, 0.18), (0.70, 0.42), (1.00, 0.61),
+            (1.30, 0.78), (1.65, 0.92), (2.00, 1.00)
         ]
         for (delay, target) in steps {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                withAnimation(.easeOut(duration: 0.25)) {
-                    loadProgress = target
-                }
+                withAnimation(.easeOut(duration: 0.25)) { loadProgress = target }
             }
         }
     }

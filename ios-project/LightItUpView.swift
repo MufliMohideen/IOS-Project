@@ -5,6 +5,59 @@
 
 import SwiftUI
 
+// MARK: - Theme
+
+private enum T {
+    static let bg        = Color(red: 0.067, green: 0.067, blue: 0.067)
+    static let surface   = Color(red: 0.11,  green: 0.11,  blue: 0.118)
+    static let card      = Color(red: 0.173, green: 0.173, blue: 0.18)
+    static let accent    = Color(red: 0.545, green: 0.361, blue: 0.965)
+    static let highlight = Color(red: 0.655, green: 0.545, blue: 0.98)
+    static let secondary = Color(red: 0.69,  green: 0.69,  blue: 0.69)
+}
+
+// MARK: - Game Gradient Background
+
+private struct GameBackground: View {
+    let accentColor: Color
+    let secondaryColor: Color
+    @State private var drift = false
+
+    var body: some View {
+        ZStack {
+            T.bg.ignoresSafeArea()
+
+            LinearGradient(
+                colors: [accentColor.opacity(0.13), accentColor.opacity(0.04), Color.clear],
+                startPoint: .top,
+                endPoint: UnitPoint(x: 0.5, y: 0.5)
+            )
+            .ignoresSafeArea()
+
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [accentColor.opacity(0.32), Color.clear],
+                    center: .center, startRadius: 0, endRadius: 180
+                ))
+                .frame(width: 300, height: 260)
+                .blur(radius: 72)
+                .offset(x: drift ? 140 : 120, y: drift ? -300 : -320)
+                .animation(.easeInOut(duration: 9).repeatForever(autoreverses: true), value: drift)
+
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [secondaryColor.opacity(0.20), Color.clear],
+                    center: .center, startRadius: 0, endRadius: 160
+                ))
+                .frame(width: 260, height: 240)
+                .blur(radius: 68)
+                .offset(x: drift ? -130 : -110, y: drift ? 360 : 380)
+                .animation(.easeInOut(duration: 11).repeatForever(autoreverses: true), value: drift)
+        }
+        .onAppear { drift = true }
+    }
+}
+
 // MARK: - Game Level
 
 enum GameLevel: Int, Equatable, CaseIterable {
@@ -105,12 +158,10 @@ struct LightItUpView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.06, green: 0.06, blue: 0.10),
-                         Color(red: 0.04, green: 0.04, blue: 0.08)],
-                startPoint: .top, endPoint: .bottom
+            GameBackground(
+                accentColor: currentLevel.glowColor,
+                secondaryColor: T.accent
             )
-            .ignoresSafeArea()
 
             if !isGameActive && (timeRemaining == 0 || lives == 0) {
                 gameOverView
@@ -159,13 +210,13 @@ struct LightItUpView: View {
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .tracking(1)
                     }
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(T.secondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(
                         Capsule()
-                            .fill(Color.white.opacity(0.07))
-                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                            .fill(T.surface)
+                            .overlay(Capsule().strokeBorder(T.card, lineWidth: 1))
                     )
                 }
                 Spacer()
@@ -174,12 +225,12 @@ struct LightItUpView: View {
                 Button(action: { showHelp = true }) {
                     Image(systemName: "questionmark")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundColor(T.secondary)
                         .frame(width: 34, height: 34)
                         .background(
                             Circle()
-                                .fill(Color.white.opacity(0.07))
-                                .overlay(Circle().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                                .fill(T.surface)
+                                .overlay(Circle().strokeBorder(T.card, lineWidth: 1))
                         )
                 }
                 .padding(.trailing, 8)
@@ -206,7 +257,7 @@ struct LightItUpView: View {
                 VStack(spacing: 3) {
                     Text("SCORE")
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(T.secondary)
                         .tracking(3)
                     Text("\(score)")
                         .font(.system(size: 32, weight: .heavy, design: .rounded))
@@ -222,7 +273,7 @@ struct LightItUpView: View {
                 VStack(spacing: 6) {
                     Text("LIVES")
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(T.secondary)
                         .tracking(3)
                     HStack(spacing: 5) {
                         ForEach(0..<3, id: \.self) { i in
@@ -240,7 +291,7 @@ struct LightItUpView: View {
                 VStack(spacing: 3) {
                     Text("TIME")
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(T.secondary)
                         .tracking(3)
                     Text("\(timeRemaining)")
                         .font(.system(size: 32, weight: .heavy, design: .rounded))
@@ -282,10 +333,10 @@ struct LightItUpView: View {
 
     private func cardBackground(accent: Color) -> some View {
         RoundedRectangle(cornerRadius: 16)
-            .fill(Color.white.opacity(0.06))
+            .fill(T.card)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(accent.opacity(0.2), lineWidth: 1.5)
+                    .strokeBorder(accent.opacity(0.35), lineWidth: 1.5)
             )
     }
 
@@ -302,7 +353,7 @@ struct LightItUpView: View {
                     .shadow(color: levelUpColor.opacity(0.7), radius: 20)
                 Text("GET READY!")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(T.secondary)
                     .tracking(4)
             }
         }
@@ -321,13 +372,13 @@ struct LightItUpView: View {
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .tracking(1)
                     }
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(T.secondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(
                         Capsule()
-                            .fill(Color.white.opacity(0.07))
-                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                            .fill(T.surface)
+                            .overlay(Capsule().strokeBorder(T.card, lineWidth: 1))
                     )
                 }
                 Spacer()
@@ -349,7 +400,7 @@ struct LightItUpView: View {
 
                 Text(isNewHighScore ? "NEW BEST!" : "GAME OVER")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundColor(isNewHighScore ? Color.yellow.opacity(0.9) : Color.white.opacity(0.45))
+                    .foregroundColor(isNewHighScore ? Color.yellow.opacity(0.9) : T.secondary)
                     .tracking(5)
             }
             .padding(.bottom, 28)
@@ -366,17 +417,17 @@ struct LightItUpView: View {
                     .shadow(color: Color.white.opacity(0.15), radius: 20)
                 Text("POINTS")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundColor(T.secondary)
                     .tracking(5)
             }
 
             HStack(spacing: 6) {
                 Image(systemName: "star.fill")
                     .font(.system(size: 11))
-                    .foregroundColor(.yellow.opacity(0.7))
+                    .foregroundColor(T.highlight.opacity(0.8))
                 Text("BEST  \(scoreStore.lightItUpBest)")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundColor(T.secondary)
                     .tracking(3)
             }
             .padding(.top, 16)
@@ -553,12 +604,12 @@ private struct LitCardView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
-                    : AnyShapeStyle(Color.white.opacity(0.06))
+                    : AnyShapeStyle(T.card)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18)
                     .strokeBorder(
-                        isLit ? glowColor.opacity(0.8) : Color.white.opacity(0.09),
+                        isLit ? glowColor.opacity(0.8) : T.surface,
                         lineWidth: isLit ? 2 : 1.5
                     )
             )

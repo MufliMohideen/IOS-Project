@@ -5,6 +5,62 @@
 
 import SwiftUI
 
+// MARK: - Theme
+
+private enum T {
+    static let bg        = Color(red: 0.067, green: 0.067, blue: 0.067)
+    static let surface   = Color(red: 0.11,  green: 0.11,  blue: 0.118)
+    static let card      = Color(red: 0.173, green: 0.173, blue: 0.18)
+    static let accent    = Color(red: 0.545, green: 0.361, blue: 0.965)
+    static let highlight = Color(red: 0.655, green: 0.545, blue: 0.98)
+    static let secondary = Color(red: 0.69,  green: 0.69,  blue: 0.69)
+}
+
+// MARK: - Game Gradient Background
+
+private struct GameBackground: View {
+    let accentColor: Color
+    let secondaryColor: Color
+    @State private var drift = false
+
+    var body: some View {
+        ZStack {
+            T.bg.ignoresSafeArea()
+
+            // Top-center vertical spotlight
+            LinearGradient(
+                colors: [accentColor.opacity(0.14), accentColor.opacity(0.04), Color.clear],
+                startPoint: .top,
+                endPoint: UnitPoint(x: 0.5, y: 0.5)
+            )
+            .ignoresSafeArea()
+
+            // Top-right orb
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [accentColor.opacity(0.35), Color.clear],
+                    center: .center, startRadius: 0, endRadius: 180
+                ))
+                .frame(width: 300, height: 260)
+                .blur(radius: 72)
+                .offset(x: drift ? 140 : 120, y: drift ? -300 : -320)
+                .animation(.easeInOut(duration: 9).repeatForever(autoreverses: true), value: drift)
+
+            // Bottom-left orb
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [secondaryColor.opacity(0.22), Color.clear],
+                    center: .center, startRadius: 0, endRadius: 160
+                ))
+                .frame(width: 260, height: 240)
+                .blur(radius: 68)
+                .offset(x: drift ? -130 : -110, y: drift ? 360 : 380)
+                .animation(.easeInOut(duration: 11).repeatForever(autoreverses: true), value: drift)
+        }
+        .onAppear { drift = true }
+    }
+}
+
 // MARK: - Trap Colour
 
 enum TrapColor: Equatable {
@@ -123,12 +179,10 @@ struct TapFrenzyView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.06, green: 0.06, blue: 0.10),
-                         Color(red: 0.04, green: 0.04, blue: 0.08)],
-                startPoint: .top, endPoint: .bottom
+            GameBackground(
+                accentColor: modeAccentColor,
+                secondaryColor: T.highlight
             )
-            .ignoresSafeArea()
 
             if isGameOver {
                 gameOverView.transition(.opacity)
@@ -198,13 +252,13 @@ struct TapFrenzyView: View {
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .tracking(1)
                     }
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(T.secondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(
                         Capsule()
-                            .fill(Color.white.opacity(0.07))
-                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                            .fill(T.surface)
+                            .overlay(Capsule().strokeBorder(T.card, lineWidth: 1))
                     )
                 }
 
@@ -214,12 +268,12 @@ struct TapFrenzyView: View {
                 Button(action: { showHelp = true }) {
                     Image(systemName: "questionmark")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundColor(T.secondary)
                         .frame(width: 34, height: 34)
                         .background(
                             Circle()
-                                .fill(Color.white.opacity(0.07))
-                                .overlay(Circle().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                                .fill(T.surface)
+                                .overlay(Circle().strokeBorder(T.card, lineWidth: 1))
                         )
                 }
                 .padding(.trailing, 8)
@@ -232,8 +286,8 @@ struct TapFrenzyView: View {
                 }
                 .background(
                     Capsule()
-                        .fill(Color.white.opacity(0.07))
-                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                        .fill(T.surface)
+                        .overlay(Capsule().strokeBorder(T.card, lineWidth: 1))
                 )
             }
             .padding(.horizontal, 20)
@@ -244,7 +298,7 @@ struct TapFrenzyView: View {
             VStack(spacing: 6) {
                 Text("SCORE")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundColor(T.secondary)
                     .tracking(4)
 
                 Text("\(score)")
@@ -284,10 +338,10 @@ struct TapFrenzyView: View {
             .frame(width: 280)
             .background(
                 RoundedRectangle(cornerRadius: 22)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(T.card)
                     .overlay(
                         RoundedRectangle(cornerRadius: 22)
-                            .strokeBorder(modeAccentColor.opacity(0.25), lineWidth: 1.5)
+                            .strokeBorder(modeAccentColor.opacity(0.4), lineWidth: 1.5)
                     )
             )
             .padding(.top, 12)
@@ -392,7 +446,7 @@ struct TapFrenzyView: View {
             VStack(spacing: 10) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.08))
+                        RoundedRectangle(cornerRadius: 4).fill(T.surface)
                         RoundedRectangle(cornerRadius: 4)
                             .fill(LinearGradient(
                                 colors: [timerColor.opacity(0.9), timerColor],
@@ -416,10 +470,10 @@ struct TapFrenzyView: View {
             .padding(.vertical, 20)
             .background(
                 RoundedRectangle(cornerRadius: 22)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(T.card)
                     .overlay(
                         RoundedRectangle(cornerRadius: 22)
-                            .strokeBorder(timerColor.opacity(0.2), lineWidth: 1.5)
+                            .strokeBorder(timerColor.opacity(0.35), lineWidth: 1.5)
                     )
             )
             .padding(.horizontal, 24)
@@ -431,12 +485,12 @@ struct TapFrenzyView: View {
 
     var ghostBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: "ghost.fill")
+            Image(systemName: "figure.run")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.white.opacity(0.4))
+                .foregroundColor(T.secondary)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3).fill(Color.white.opacity(0.07))
+                    RoundedRectangle(cornerRadius: 3).fill(T.surface)
                     // Ghost progress
                     let maxScore = max(1, max(score, previousRunScorecard.last ?? 1))
                     RoundedRectangle(cornerRadius: 3)
@@ -455,7 +509,7 @@ struct TapFrenzyView: View {
             .frame(height: 5)
             Text("GHOST: \(ghostScore)")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundColor(.white.opacity(0.35))
+                .foregroundColor(T.secondary)
                 .fixedSize()
         }
     }
@@ -472,7 +526,7 @@ struct TapFrenzyView: View {
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(Color(red: 0.07, green: 0.07, blue: 0.11))
+                        .fill(T.card)
                         .overlay(Capsule().strokeBorder(streakColor.opacity(0.5), lineWidth: 1.5))
                         .shadow(color: streakColor.opacity(0.35), radius: 10)
                 )
@@ -487,7 +541,7 @@ struct TapFrenzyView: View {
         switch gameMode {
         case .normal: return trapColor.accentColor
         case .streak: return streakColor
-        case .ghost:  return Color(red: 0.55, green: 0.45, blue: 1.0)
+        case .ghost:  return T.accent
         }
     }
 
@@ -497,7 +551,7 @@ struct TapFrenzyView: View {
         Text(label)
             .font(.system(size: 10, weight: .bold, design: .rounded))
             .tracking(1)
-            .foregroundColor(isSelected ? .black : .white.opacity(0.5))
+            .foregroundColor(isSelected ? .black : T.secondary)
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
             .background(
@@ -529,13 +583,13 @@ struct TapFrenzyView: View {
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .tracking(1)
                     }
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(T.secondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(
                         Capsule()
-                            .fill(Color.white.opacity(0.07))
-                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                            .fill(T.surface)
+                            .overlay(Capsule().strokeBorder(T.card, lineWidth: 1))
                     )
                 }
                 Spacer()
@@ -558,7 +612,7 @@ struct TapFrenzyView: View {
 
                 Text(isNewHighScore ? "NEW BEST!" : "GAME OVER")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundColor(isNewHighScore ? Color.yellow.opacity(0.9) : Color.white.opacity(0.45))
+                    .foregroundColor(isNewHighScore ? Color.yellow.opacity(0.9) : T.secondary)
                     .tracking(5)
             }
             .padding(.bottom, 28)
@@ -570,10 +624,10 @@ struct TapFrenzyView: View {
                         LinearGradient(colors: [Color.white, Color.white.opacity(0.75)],
                                        startPoint: .top, endPoint: .bottom)
                     )
-                    .shadow(color: Color.white.opacity(0.15), radius: 20)
+                    .shadow(color: T.accent.opacity(0.3), radius: 20)
                 Text("TAPS")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundColor(T.secondary)
                     .tracking(5)
             }
 
@@ -584,7 +638,7 @@ struct TapFrenzyView: View {
                 let won = delta > 0
                 let tied = delta == 0
                 let accent: Color = won ? Color(red: 0.2, green: 1.0, blue: 0.5)
-                                  : tied ? Color(red: 0.6, green: 0.6, blue: 0.7)
+                                  : tied ? T.highlight
                                   : Color(red: 1.0, green: 0.35, blue: 0.35)
                 let icon = won ? "figure.run" : tied ? "equal.circle.fill" : "ghost.fill"
                 let headline = won ? "YOU WON!" : tied ? "TIED" : "GHOST WINS"
@@ -601,22 +655,22 @@ struct TapFrenzyView: View {
                                 .foregroundColor(.white)
                             Text("YOU")
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.35))
+                                .foregroundColor(T.secondary)
                                 .tracking(3)
                         }
                         .frame(maxWidth: .infinity)
 
                         Rectangle()
-                            .fill(Color.white.opacity(0.12))
+                            .fill(T.surface)
                             .frame(width: 1, height: 44)
 
                         VStack(spacing: 4) {
                             Text("\(prev)")
                                 .font(.system(size: 36, weight: .heavy, design: .rounded))
-                                .foregroundColor(.white.opacity(0.45))
+                                .foregroundColor(T.secondary)
                             Text("GHOST")
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.25))
+                                .foregroundColor(T.secondary.opacity(0.6))
                                 .tracking(3)
                         }
                         .frame(maxWidth: .infinity)
@@ -654,10 +708,10 @@ struct TapFrenzyView: View {
             HStack(spacing: 6) {
                 Image(systemName: "star.fill")
                     .font(.system(size: 11))
-                    .foregroundColor(.yellow.opacity(0.7))
+                    .foregroundColor(T.highlight.opacity(0.8))
                 Text("BEST  \(scoreStore.tapFrenzyBest)")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundColor(T.secondary)
                     .tracking(3)
             }
             .padding(.top, 10)

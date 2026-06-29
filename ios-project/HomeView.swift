@@ -5,18 +5,24 @@
 
 import SwiftUI
 
+// MARK: - Theme
+
+private enum T {
+    static let bg        = Color(red: 0.067, green: 0.067, blue: 0.067)
+    static let surface   = Color(red: 0.11,  green: 0.11,  blue: 0.118)
+    static let card      = Color(red: 0.173, green: 0.173, blue: 0.18)
+    static let accent    = Color(red: 0.545, green: 0.361, blue: 0.965)
+    static let highlight = Color(red: 0.655, green: 0.545, blue: 0.98)
+    static let secondary = Color(red: 0.69,  green: 0.69,  blue: 0.69)
+}
+
 struct HomeView: View {
     @EnvironmentObject var scoreStore: ScoreStore
 
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.06, green: 0.06, blue: 0.10),
-                             Color(red: 0.04, green: 0.04, blue: 0.08)],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                HomeBackground()
 
                 VStack(spacing: 0) {
                     // Header
@@ -25,11 +31,11 @@ struct HomeView: View {
                             .font(.system(size: 34, weight: .heavy, design: .rounded))
                             .foregroundColor(.white)
                             .tracking(5)
-                            .shadow(color: Color(red: 1, green: 0.3, blue: 0.3).opacity(0.5), radius: 14)
+                            .shadow(color: T.accent.opacity(0.5), radius: 14)
 
                         Text("CHOOSE YOUR GAME")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.4))
+                            .foregroundColor(T.secondary)
                             .tracking(4)
                     }
                     .padding(.top, 64)
@@ -42,7 +48,7 @@ struct HomeView: View {
                                 title: "TAP FRENZY",
                                 description: "Tap as fast as you can. Avoid traps. Beat the clock.",
                                 icon: "hand.tap.fill",
-                                accentColor: Color(red: 0.95, green: 0.25, blue: 0.25),
+                                accentColor: T.accent,
                                 bestScore: scoreStore.tapFrenzyBest
                             )
                         }
@@ -53,7 +59,7 @@ struct HomeView: View {
                                 title: "LIGHT IT UP",
                                 description: "Light up the grid. Miss it and lose a life.",
                                 icon: "bolt.fill",
-                                accentColor: Color(red: 0.2, green: 0.75, blue: 1.0),
+                                accentColor: T.accent,
                                 bestScore: scoreStore.lightItUpBest
                             )
                         }
@@ -72,6 +78,96 @@ struct HomeView: View {
     }
 }
 
+// MARK: - Gradient Background
+
+private struct HomeBackground: View {
+    @State private var drift: Bool = false
+
+    var body: some View {
+        ZStack {
+            // Base
+            T.bg.ignoresSafeArea()
+
+            // Top-center spotlight — tall vertical column of accent light
+            // bleeds down from the title area like a stage light
+            LinearGradient(
+                colors: [
+                    T.accent.opacity(0.18),
+                    T.accent.opacity(0.06),
+                    Color.clear
+                ],
+                startPoint: .top,
+                endPoint: UnitPoint(x: 0.5, y: 0.55)
+            )
+            .ignoresSafeArea()
+
+            // Top-left deep violet orb — drifts gently
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.38, green: 0.16, blue: 0.78).opacity(0.45),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 200
+                    )
+                )
+                .frame(width: 340, height: 300)
+                .blur(radius: 70)
+                .offset(
+                    x: drift ? -130 : -110,
+                    y: drift ? -340 : -360
+                )
+                .animation(
+                    .easeInOut(duration: 9).repeatForever(autoreverses: true),
+                    value: drift
+                )
+
+            // Bottom-right highlight orb
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            T.highlight.opacity(0.25),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 180
+                    )
+                )
+                .frame(width: 300, height: 280)
+                .blur(radius: 65)
+                .offset(
+                    x: drift ? 140 : 120,
+                    y: drift ? 340 : 360
+                )
+                .animation(
+                    .easeInOut(duration: 11).repeatForever(autoreverses: true),
+                    value: drift
+                )
+
+            // Very subtle noise texture — thin horizontal scan-line shimmer
+            // achieved with a near-transparent gradient overlay
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.015),
+                    Color.clear,
+                    Color.white.opacity(0.01),
+                    Color.clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            .blendMode(.screen)
+        }
+        .onAppear { drift = true }
+    }
+}
+
 // MARK: - Made With Heart Label
 
 private struct MadeWithHeartLabel: View {
@@ -82,10 +178,10 @@ private struct MadeWithHeartLabel: View {
     private let heartColor = Color(red: 1, green: 0.22, blue: 0.3)
 
     var body: some View {
-        HStack(spacing: 5) {
-            Text("made with")
+        HStack(spacing: 0) {
+            Text("Made with ")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.22))
+                .foregroundColor(.white.opacity(0.28))
 
             Image(systemName: "heart.fill")
                 .font(.system(size: 11, weight: .bold))
@@ -93,21 +189,23 @@ private struct MadeWithHeartLabel: View {
                 .scaleEffect(heartScale)
                 .shadow(color: heartColor.opacity(glowOpacity), radius: glowRadius)
 
-            Text("by Mufli Mohideen")
+            Text(" by ")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.22))
+                .foregroundColor(.white.opacity(0.28))
+
+            Text("Mufli Mohideen")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundColor(T.accent)
         }
         .onAppear { beatLoop() }
     }
 
     private func beatLoop() {
-        // First beat — quick pump up
         withAnimation(.easeOut(duration: 0.12)) {
             heartScale  = 1.35
             glowRadius  = 10
             glowOpacity = 1.0
         }
-        // Settle back
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) {
                 heartScale  = 1.0
@@ -115,7 +213,6 @@ private struct MadeWithHeartLabel: View {
                 glowOpacity = 0.5
             }
         }
-        // Second beat (the lub-dub double beat feel)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
             withAnimation(.easeOut(duration: 0.10)) {
                 heartScale  = 1.22
@@ -130,10 +227,7 @@ private struct MadeWithHeartLabel: View {
                 glowOpacity = 0.5
             }
         }
-        // Rest, then repeat
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            beatLoop()
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { beatLoop() }
     }
 }
 
@@ -148,7 +242,6 @@ private struct GameModeCard: View {
 
     var body: some View {
         HStack(spacing: 18) {
-            // Icon circle
             ZStack {
                 Circle()
                     .fill(accentColor.opacity(0.15))
@@ -158,7 +251,6 @@ private struct GameModeCard: View {
                     .foregroundColor(accentColor)
             }
 
-            // Text
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
@@ -166,24 +258,23 @@ private struct GameModeCard: View {
                     .tracking(1)
                 Text(description)
                     .font(.system(size: 13, weight: .regular, design: .rounded))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(T.secondary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
 
-            // Best score
             VStack(spacing: 3) {
                 Image(systemName: "star.fill")
                     .font(.system(size: 10))
-                    .foregroundColor(.yellow.opacity(0.7))
+                    .foregroundColor(T.highlight.opacity(0.8))
                 Text("\(bestScore)")
                     .font(.system(size: 20, weight: .heavy, design: .rounded))
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundColor(.white)
                 Text("BEST")
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundColor(T.secondary.opacity(0.6))
                     .tracking(2)
             }
         }
@@ -191,10 +282,10 @@ private struct GameModeCard: View {
         .padding(.vertical, 20)
         .background(
             RoundedRectangle(cornerRadius: 22)
-                .fill(Color.white.opacity(0.06))
+                .fill(T.card)
                 .overlay(
                     RoundedRectangle(cornerRadius: 22)
-                        .strokeBorder(accentColor.opacity(0.22), lineWidth: 1.5)
+                        .strokeBorder(accentColor.opacity(0.45), lineWidth: 1.5)
                 )
         )
     }
