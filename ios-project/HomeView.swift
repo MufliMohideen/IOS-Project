@@ -18,7 +18,9 @@ private enum T {
 
 struct HomeView: View {
     @EnvironmentObject var scoreStore: ScoreStore
+    @EnvironmentObject var coinStore: CoinStore
     @State private var showScores = false
+    @State private var showShop  = false
 
     var body: some View {
         NavigationStack {
@@ -28,7 +30,44 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                     // Top bar
                     HStack {
+                        // Shop button + coin balance
+                        Button(action: { showShop = true }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "cart.fill")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text("SHOP")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .tracking(1)
+                            }
+                            .foregroundColor(T.accent)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                Capsule()
+                                    .fill(T.accent.opacity(0.12))
+                                    .overlay(Capsule().strokeBorder(T.accent.opacity(0.35), lineWidth: 1))
+                            )
+                        }
+
+                        // Coin balance pill
+                        HStack(spacing: 4) {
+                            GoldCoinIcon(size: 14)
+                            Text("\(coinStore.coins)")
+                                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                .foregroundColor(.white)
+                                .contentTransition(.numericText())
+                                .animation(.spring(response: 0.3), value: coinStore.coins)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color(red: 0.11, green: 0.11, blue: 0.118))
+                                .overlay(Capsule().strokeBorder(T.highlight.opacity(0.3), lineWidth: 1))
+                        )
+
                         Spacer()
+
                         Button(action: { showScores = true }) {
                             HStack(spacing: 5) {
                                 Image(systemName: "trophy.fill")
@@ -110,6 +149,10 @@ struct HomeView: View {
                 }
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showShop) {
+                ShopView()
+                    .environmentObject(coinStore)
+            }
             .sheet(isPresented: $showScores) {
                 HighScoresView(
                     tapBest:     scoreStore.tapFrenzyBest,
@@ -580,4 +623,5 @@ private struct CardPressStyle: ButtonStyle {
 #Preview {
     HomeView()
         .environmentObject(ScoreStore())
+        .environmentObject(CoinStore())
 }

@@ -37,4 +37,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environmentObject(ScoreStore())
+        .environmentObject(CoinStore())
 }

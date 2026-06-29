@@ -65,6 +65,7 @@ private struct GameBackground: View {
 
 struct QuizView: View {
     @EnvironmentObject var scoreStore: ScoreStore
+    @EnvironmentObject var coinStore: CoinStore
     @Environment(\.dismiss) private var dismiss
 
     @StateObject private var viewModel = QuizViewModel()
@@ -99,6 +100,7 @@ struct QuizView: View {
         }
         .onChange(of: viewModel.isGameOver) { over in
             if over {
+                coinStore.convertScore(quizRush: viewModel.score)
                 scoreStore.updateQuizRush(viewModel.score)
                 viewModel.markHighScore(current: scoreStore.quizRushBest)
             }
@@ -546,4 +548,5 @@ private struct AnswerButtonRow: View {
 #Preview {
     QuizView()
         .environmentObject(ScoreStore())
+        .environmentObject(CoinStore())
 }

@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - Theme
 
@@ -136,6 +137,7 @@ struct LitCard: Identifiable, Equatable {
 
 struct LightItUpView: View {
     @EnvironmentObject var scoreStore: ScoreStore
+    @EnvironmentObject var coinStore: CoinStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var score: Int = 0
@@ -312,9 +314,11 @@ struct LightItUpView: View {
             let cols = Array(repeating: GridItem(.flexible(), spacing: 14), count: currentLevel.columns)
             LazyVGrid(columns: cols, spacing: 14) {
                 ForEach(cards) { card in
+                    let tileSkin = CoinStore.tileSkins.first(where: { $0.id == coinStore.equippedTileSkin })
                     LitCardView(
                         isLit: card.isLit,
-                        glowColor: currentLevel.glowColor
+                        glowColor: currentLevel.glowColor,
+                        tileSkin: tileSkin
                     )
                     .aspectRatio(1.0, contentMode: .fit)
                     .onTapGesture {
@@ -575,6 +579,7 @@ struct LightItUpView: View {
         isGameActive = false
         SoundManager.shared.playGameOver()
         SoundManager.shared.heavyHaptic()
+        coinStore.convertScore(lightItUp: score)
         scoreStore.updateLightItUp(score)
         if score >= scoreStore.lightItUpBest {
             isNewHighScore = true
@@ -594,35 +599,340 @@ struct LightItUpView: View {
 private struct LitCardView: View {
     let isLit: Bool
     let glowColor: Color
+    var tileSkin: TileSkin? = nil
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 18)
-            .fill(
-                isLit
-                    ? AnyShapeStyle(LinearGradient(
-                        colors: [glowColor.opacity(0.9), glowColor.opacity(0.6)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-                    : AnyShapeStyle(T.card)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .strokeBorder(
-                        isLit ? glowColor.opacity(0.8) : T.surface,
-                        lineWidth: isLit ? 2 : 1.5
-                    )
-            )
-            .shadow(
-                color: isLit ? glowColor.opacity(0.55) : Color.clear,
-                radius: isLit ? 16 : 0
-            )
-            .scaleEffect(isLit ? 1.08 : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.6), value: isLit)
+        let activeGlow = tileSkin?.glowColor ?? glowColor
+        let activeLitColors = tileSkin?.litColors ?? [glowColor.opacity(0.9), glowColor.opacity(0.6)]
+
+        ZStack {
+            // Unlit base
+            RoundedRectangle(cornerRadius: 18)
+                .fill(isLit ? AnyShapeStyle(LinearGradient(colors: activeLitColors, startPoint: .topLeading, endPoint: .bottomTrailing)) : AnyShapeStyle(T.card))
+                .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(isLit ? activeGlow.opacity(0.8) : T.surface, lineWidth: isLit ? 2 : 1.5))
+                .shadow(color: isLit ? activeGlow.opacity(0.55) : Color.clear, radius: isLit ? 16 : 0)
+
+            // Animated skin overlay when lit
+            if isLit, let skin = tileSkin {
+                LitTileSkinOverlay(skinID: skin.id)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .allowsHitTesting(false)
+            }
+        }
+        .scaleEffect(isLit ? 1.08 : 1.0)
+        .animation(.spring(response: 0.28, dampingFraction: 0.6), value: isLit)
+    }
+}
+
+// Animated overlay rendered on top of the lit tile gradient
+private struct LitTileSkinOverlay: View {
+    let skinID: String
+    var body: some View {
+        switch skinID {
+        case "fire":   FireTileOverlay()
+        case "galaxy": GalaxyTileOverlay()
+        case "neon":   NeonTileOverlay()
+        case "gold":   GoldTileOverlay()
+        case "ice":    IceTileOverlay()
+        case "pirate": PirateTileOverlay()
+        default:       EmptyView()
+        }
+    }
+}
+
+// Fire: flame particles rising from base
+private struct FireTileOverlay: View {
+    @State private var particles: [LitFlameParticle] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var isRunning = false
+    private let fastTimer  = Timer.publish(every: 0.09, on: .main, in: .common).autoconnect()
+    private let emberTimer = Timer.publish(every: 0.16, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            ForEach(particles.filter { activeIDs.contains($0.id) }) { p in LitFlameView(p: p) }
+        }
+        .onAppear { isRunning = true; for i in 0..<6 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.05) { spawn(isEmber: false) } } }
+        .onDisappear { isRunning = false }
+        .onReceive(fastTimer)  { _ in if isRunning { spawn(isEmber: false) } }
+        .onReceive(emberTimer) { _ in if isRunning { spawn(isEmber: true) } }
+    }
+    private func spawn(isEmber: Bool) {
+        let id = Int.random(in: 0..<1_000_000)
+        let p  = LitFlameParticle(id: id, x: CGFloat.random(in: -30...30), drift: CGFloat.random(in: -12...12),
+                                  size: isEmber ? CGFloat.random(in: 3...6) : CGFloat.random(in: 12...26),
+                                  duration: Double.random(in: 0.4...0.75), isEmber: isEmber)
+        particles.append(p); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + p.duration + 0.1) { activeIDs.remove(id); particles.removeAll { $0.id == id } }
+    }
+}
+private struct LitFlameParticle: Identifiable { let id: Int; let x: CGFloat; let drift: CGFloat; let size: CGFloat; let duration: Double; let isEmber: Bool }
+private struct LitFlameView: View {
+    let p: LitFlameParticle
+    @State private var y: CGFloat = 18; @State private var x: CGFloat = 0; @State private var opacity: Double = 0
+    var body: some View {
+        Group {
+            if p.isEmber {
+                Circle().fill(RadialGradient(colors: [Color.white, Color.yellow, Color.orange.opacity(0)], center: .center, startRadius: 0, endRadius: p.size/2))
+                    .frame(width: p.size, height: p.size)
+            } else {
+                Ellipse().fill(RadialGradient(colors: [Color.white.opacity(0.9), Color.yellow.opacity(0.7), Color.orange.opacity(0.4), Color.clear], center: .center, startRadius: 0, endRadius: p.size * 0.5))
+                    .frame(width: p.size * 0.6, height: p.size).blur(radius: 2)
+            }
+        }
+        .opacity(opacity).offset(x: x, y: y)
+        .onAppear {
+            x = p.x
+            withAnimation(.easeOut(duration: 0.08)) { opacity = 0.85 }
+            withAnimation(.easeOut(duration: p.duration)) { y = CGFloat.random(in: -40 ... -20); x = p.x + p.drift }
+            withAnimation(.easeIn(duration: 0.25).delay(p.duration * 0.65)) { opacity = 0 }
+        }
+    }
+}
+
+// Galaxy: warp stars zooming outward
+private struct GalaxyTileOverlay: View {
+    @State private var stars: [LitStar] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var isRunning = false
+    private let timer = Timer.publish(every: 0.08, on: .main, in: .common).autoconnect()
+    private let colors: [Color] = [.white, Color(red:0.88,green:0.75,blue:1), Color(red:0.55,green:0.88,blue:1)]
+
+    var body: some View {
+        ZStack { ForEach(stars.filter { activeIDs.contains($0.id) }) { s in LitStarView(star: s) } }
+        .onAppear { isRunning = true; for i in 0..<8 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.06) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(timer) { _ in if isRunning { spawn() } }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000); let spd = Double.random(in: 0.35...0.7)
+        let s  = LitStar(id: id, angle: Double.random(in: 0..<360), speed: spd, startR: CGFloat.random(in: 2...8), size: CGFloat.random(in: 1...3), color: colors.randomElement()!)
+        stars.append(s); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + spd + 0.1) { activeIDs.remove(id); stars.removeAll { $0.id == id } }
+    }
+}
+private struct LitStar: Identifiable { let id: Int; let angle: Double; let speed: Double; let startR: CGFloat; let size: CGFloat; let color: Color }
+private struct LitStarView: View {
+    let star: LitStar
+    @State private var progress: CGFloat = 0; @State private var opacity: Double = 0
+    private let endR: CGFloat = 42
+    var body: some View {
+        let rad = star.angle * Double.pi / 180
+        ZStack {
+            Capsule().fill(LinearGradient(colors: [star.color.opacity(0), star.color.opacity(0.5 * opacity)], startPoint: .leading, endPoint: .trailing))
+                .frame(width: max(1,(endR-star.startR)*progress*0.5), height: max(0.5,star.size*0.4))
+                .offset(x: CGFloat(cos(rad)) * (star.startR+(endR-star.startR)*progress*0.72),
+                        y: CGFloat(sin(rad)) * (star.startR+(endR-star.startR)*progress*0.72))
+                .rotationEffect(.degrees(star.angle))
+            Circle().fill(RadialGradient(colors:[Color.white,star.color.opacity(0.5),.clear], center:.center, startRadius:0, endRadius:star.size))
+                .frame(width: star.size*2, height: star.size*2).opacity(opacity)
+                .offset(x: CGFloat(cos(rad)) * (star.startR+(endR-star.startR)*progress),
+                        y: CGFloat(sin(rad)) * (star.startR+(endR-star.startR)*progress))
+        }
+        .onAppear {
+            withAnimation(.easeIn(duration: 0.08)) { opacity = 1 }
+            withAnimation(.easeIn(duration: star.speed)) { progress = 1 }
+            withAnimation(.easeOut(duration: 0.2).delay(star.speed*0.8)) { opacity = 0 }
+        }
+    }
+}
+
+// Neon: rapid lightning bolts crackling
+private struct NeonTileOverlay: View {
+    @State private var bolts: [LitBolt] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var isRunning = false
+    private let timer = Timer.publish(every: 0.11, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack { ForEach(bolts.filter { activeIDs.contains($0.id) }) { b in LitBoltView(bolt: b) } }
+        .onAppear { isRunning = true; for i in 0..<4 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.08) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(timer) { _ in if isRunning { spawn() } }
+    }
+    private func spawn() {
+        let id    = Int.random(in: 0..<1_000_000)
+        let angle = Double.random(in: 0..<360); let rad = angle * .pi / 180
+        let segs  = Int.random(in: 3...5); var pts = [CGPoint(x:0,y:0)]
+        let len: CGFloat = CGFloat.random(in: 20...32); let segLen = len / CGFloat(segs)
+        for seg in 1...segs {
+            let along = segLen * CGFloat(seg)
+            let jag: CGFloat = seg == segs ? 1 : CGFloat.random(in: -8...8)
+            pts.append(CGPoint(x: cos(rad + .pi/2)*jag + cos(rad)*along, y: sin(rad + .pi/2)*jag + sin(rad)*along))
+        }
+        let b = LitBolt(id: id, points: pts, duration: Double.random(in: 0.08...0.18),
+                        color: Bool.random() ? .white : Color(red:0,green:0.95,blue:0.75), width: CGFloat.random(in: 1...1.6))
+        bolts.append(b); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + b.duration + 0.05) { activeIDs.remove(id); bolts.removeAll { $0.id == id } }
+    }
+}
+private struct LitBolt: Identifiable { let id: Int; let points: [CGPoint]; let duration: Double; let color: Color; let width: CGFloat }
+private struct LitBoltView: View {
+    let bolt: LitBolt; @State private var opacity: Double = 0
+    var body: some View {
+        ZStack {
+            LitBoltPath(points: bolt.points).stroke(bolt.color.opacity(0.4), lineWidth: bolt.width+3).blur(radius: 2.5).opacity(opacity)
+            LitBoltPath(points: bolt.points).stroke(bolt.color, style: StrokeStyle(lineWidth: bolt.width, lineCap: .round, lineJoin: .round)).opacity(opacity)
+        }
+        .onAppear { opacity = 1; withAnimation(.easeIn(duration: bolt.duration*0.75).delay(bolt.duration*0.25)) { opacity = 0 } }
+    }
+}
+private struct LitBoltPath: Shape {
+    let points: [CGPoint]
+    func path(in rect: CGRect) -> Path {
+        var p = Path(); guard points.count > 1 else { return p }
+        p.move(to: CGPoint(x: rect.midX + points[0].x, y: rect.midY + points[0].y))
+        for pt in points.dropFirst() { p.addLine(to: CGPoint(x: rect.midX + pt.x, y: rect.midY + pt.y)) }
+        return p
+    }
+}
+
+// Gold: rising coin particles + shine streak
+private struct GoldTileOverlay: View {
+    @State private var particles: [LitGoldParticle] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var shineAngle: Double = 0
+    @State private var isRunning = false
+    private let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            Capsule().fill(LinearGradient(colors: [Color.clear, Color.white.opacity(0.5), Color.clear], startPoint: .leading, endPoint: .trailing))
+                .frame(width: 80, height: 2.5).rotationEffect(.degrees(shineAngle)).blendMode(.screen)
+            ForEach(particles.filter { activeIDs.contains($0.id) }) { p in LitGoldView(p: p) }
+        }
+        .onAppear { isRunning = true; withAnimation(.linear(duration: 2.2).repeatForever(autoreverses: false)) { shineAngle = 180 }
+            for i in 0..<5 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.08) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(timer) { _ in if isRunning { spawn() } }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000)
+        let p  = LitGoldParticle(id: id, x: CGFloat.random(in: -30...30), size: CGFloat.random(in: 4...8), duration: Double.random(in: 0.5...0.9))
+        particles.append(p); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + p.duration + 0.1) { activeIDs.remove(id); particles.removeAll { $0.id == id } }
+    }
+}
+private struct LitGoldParticle: Identifiable { let id: Int; let x: CGFloat; let size: CGFloat; let duration: Double }
+private struct LitGoldView: View {
+    let p: LitGoldParticle; @State private var y: CGFloat = 12; @State private var opacity: Double = 0; @State private var rotation: Double = 0
+    var body: some View {
+        ZStack {
+            Ellipse().fill(LinearGradient(colors:[Color(red:1,green:0.97,blue:0.45),Color(red:0.88,green:0.62,blue:0)], startPoint:.topLeading, endPoint:.bottomTrailing))
+                .frame(width: p.size*0.65, height: p.size)
+            Ellipse().strokeBorder(Color(red:0.55,green:0.32,blue:0).opacity(0.5), lineWidth: 0.7).frame(width: p.size*0.65, height: p.size)
+        }
+        .rotationEffect(.degrees(rotation)).opacity(opacity).offset(x: p.x, y: y)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.08)) { opacity = 0.9 }
+            withAnimation(.easeOut(duration: p.duration)) { y = CGFloat.random(in: -38 ... -18); rotation = Double.random(in: 180...540) }
+            withAnimation(.easeIn(duration: 0.22).delay(p.duration*0.68)) { opacity = 0 }
+        }
+    }
+}
+
+// Ice: blizzard crystal particles + rotating snowflake
+private struct IceTileOverlay: View {
+    @State private var particles: [LitIceParticle] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var snowAngle: Double = 0
+    @State private var isRunning = false
+    private let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            // Snowflake
+            ZStack {
+                ForEach(0..<6) { i in
+                    Capsule().fill(Color.white.opacity(0.7)).frame(width: 14, height: 1.2).offset(x: 7).rotationEffect(.degrees(Double(i)*60 + snowAngle))
+                }
+                Circle().fill(Color.white.opacity(0.9)).frame(width: 3.5, height: 3.5)
+            }
+            ForEach(particles.filter { activeIDs.contains($0.id) }) { p in LitIceView(p: p) }
+        }
+        .onAppear { isRunning = true; withAnimation(.linear(duration: 7).repeatForever(autoreverses: false)) { snowAngle = 360 }
+            for i in 0..<6 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.07) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(timer) { _ in if isRunning { spawn() } }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000); let sx = CGFloat.random(in: -34...34); let sy = CGFloat.random(in: -34...34)
+        let drift = CGFloat.random(in: 8...18)
+        let p = LitIceParticle(id: id, sx: sx, sy: sy, ex: sx+drift, ey: sy+drift, size: CGFloat.random(in: 1.5...4), duration: Double.random(in: 0.5...0.9))
+        particles.append(p); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + p.duration + 0.1) { activeIDs.remove(id); particles.removeAll { $0.id == id } }
+    }
+}
+private struct LitIceParticle: Identifiable { let id: Int; let sx: CGFloat; let sy: CGFloat; let ex: CGFloat; let ey: CGFloat; let size: CGFloat; let duration: Double }
+private struct LitIceView: View {
+    let p: LitIceParticle; @State private var x: CGFloat = 0; @State private var y: CGFloat = 0; @State private var opacity: Double = 0
+    var body: some View {
+        Circle().fill(Color.white.opacity(0.85)).frame(width: p.size, height: p.size).opacity(opacity).offset(x: x, y: y)
+        .onAppear {
+            x = p.sx; y = p.sy
+            withAnimation(.easeIn(duration: 0.1)) { opacity = 0.9 }
+            withAnimation(.linear(duration: p.duration)) { x = p.ex; y = p.ey }
+            withAnimation(.easeOut(duration: 0.25).delay(p.duration*0.72)) { opacity = 0 }
+        }
+    }
+}
+
+// Pirate: cannonball streaks + storm flash
+private struct PirateTileOverlay: View {
+    @State private var cannonballs: [LitCannonball] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var stormFlash: Double = 0
+    @State private var isRunning = false
+    private let cbTimer    = Timer.publish(every: 0.5,  on: .main, in: .common).autoconnect()
+    private let stormTimer = Timer.publish(every: 1.7,  on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18).fill(Color(red:0.7,green:0.4,blue:1).opacity(stormFlash)).blendMode(.screen)
+            ForEach(cannonballs.filter { activeIDs.contains($0.id) }) { cb in LitCannonballView(cb: cb) }
+        }
+        .onAppear { isRunning = true; triggerStorm(); for i in 0..<2 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.3) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(cbTimer)    { _ in if isRunning { spawn() } }
+        .onReceive(stormTimer) { _ in if isRunning { triggerStorm() } }
+    }
+    private func triggerStorm() {
+        stormFlash = 0
+        withAnimation(.easeOut(duration: 0.04)) { stormFlash = 0.35 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { withAnimation(.easeOut(duration: 0.06)) { stormFlash = 0.04 } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) { withAnimation(.easeOut(duration: 0.04)) { stormFlash = 0.25 } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) { withAnimation(.easeIn(duration: 0.25)) { stormFlash = 0 } }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000); let angle = Double.random(in: 0..<360); let rad = angle * .pi / 180
+        let cb = LitCannonball(id: id, sx: cos(rad)*38, sy: sin(rad)*38, angle: angle+180, speed: Double.random(in: 0.3...0.5))
+        cannonballs.append(cb); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + cb.speed + 0.1) { activeIDs.remove(id); cannonballs.removeAll { $0.id == id } }
+    }
+}
+private struct LitCannonball: Identifiable { let id: Int; let sx: CGFloat; let sy: CGFloat; let angle: Double; let speed: Double }
+private struct LitCannonballView: View {
+    let cb: LitCannonball; @State private var x: CGFloat = 0; @State private var y: CGFloat = 0; @State private var opacity: Double = 0
+    var body: some View {
+        let rad = cb.angle * Double.pi / 180
+        ZStack {
+            Capsule().fill(Color(red:0.5,green:0.4,blue:0.55).opacity(0.4)).frame(width: 16, height: 2).rotationEffect(.degrees(cb.angle+90)).blur(radius: 1)
+                .offset(x: x - CGFloat(cos(rad)) * 8, y: y - CGFloat(sin(rad)) * 8)
+            Circle().fill(RadialGradient(colors:[Color(red:0.55,green:0.55,blue:0.6),Color(red:0.2,green:0.2,blue:0.22)], center:.init(x:0.35,y:0.3), startRadius:0, endRadius:4))
+                .frame(width: 7, height: 7).offset(x: x, y: y)
+        }
+        .opacity(opacity)
+        .onAppear {
+            x = cb.sx; y = cb.sy
+            withAnimation(.easeIn(duration: 0.08)) { opacity = 1 }
+            withAnimation(.linear(duration: cb.speed)) { x = cb.sx + CGFloat(cos(rad)) * 76; y = cb.sy + CGFloat(sin(rad)) * 76 }
+            withAnimation(.easeIn(duration: 0.2).delay(cb.speed*0.75)) { opacity = 0 }
+        }
     }
 }
 
 #Preview {
     LightItUpView()
         .environmentObject(ScoreStore())
+        .environmentObject(CoinStore())
 }

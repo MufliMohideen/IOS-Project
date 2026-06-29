@@ -10,11 +10,13 @@ import SwiftUI
 @main
 struct ios_projectApp: App {
     @StateObject var scoreStore = ScoreStore()
+    @StateObject var coinStore  = CoinStore()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(scoreStore)
+                .environmentObject(coinStore)
         }
     }
 }

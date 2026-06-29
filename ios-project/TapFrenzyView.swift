@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - Theme
 
@@ -111,6 +112,7 @@ enum GameMode: Equatable {
 
 struct TapFrenzyView: View {
     @EnvironmentObject var scoreStore: ScoreStore
+    @EnvironmentObject var coinStore: CoinStore
     @Environment(\.dismiss) private var dismiss
 
     // Core state
@@ -385,46 +387,53 @@ struct TapFrenzyView: View {
             // TAP button
             Button(action: buttonTapped) {
                 ZStack {
+                    let useSkin = trapColor == .red
+                    let activeSkin = CoinStore.buttonSkins.first(where: { $0.id == coinStore.equippedButtonSkin })
+                    let displayColors = useSkin ? (activeSkin?.colors ?? trapColor.colors) : trapColor.colors
+                    let displayGlow   = useSkin ? (activeSkin?.glowColor ?? trapColor.glowColor) : trapColor.glowColor
+                    let skinID        = useSkin ? coinStore.equippedButtonSkin : "default"
+
+                    // Outer glow halo
                     Circle()
-                        .fill(trapColor.glowColor.opacity(0.18))
+                        .fill(displayGlow.opacity(0.18))
                         .frame(width: buttonSize + 28, height: buttonSize + 28)
                         .blur(radius: 12)
 
+                    // Base gradient (used for all skins as backdrop, hidden by overlay for animated skins)
                     Circle()
-                        .fill(
-                            LinearGradient(colors: trapColor.colors,
-                                           startPoint: .topLeading,
-                                           endPoint: .bottomTrailing)
-                        )
+                        .fill(LinearGradient(colors: displayColors, startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: buttonSize, height: buttonSize)
-                        .shadow(color: trapColor.glowColor, radius: 22, x: 0, y: 8)
+                        .shadow(color: displayGlow, radius: 22, x: 0, y: 8)
 
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.white.opacity(0.22), Color.clear],
-                                center: .init(x: 0.35, y: 0.3),
-                                startRadius: 0,
-                                endRadius: buttonSize * 0.55
-                            )
-                        )
-                        .frame(width: buttonSize, height: buttonSize)
+                    // Animated skin overlay scaled to button size
+                    if useSkin && skinID != "default" {
+                        TapButtonSkinOverlay(skinID: skinID)
+                            .frame(width: buttonSize, height: buttonSize)
+                            .clipShape(Circle())
+                            .allowsHitTesting(false)
+                    } else {
+                        // Plain gloss for Classic / trap states
+                        Circle()
+                            .fill(RadialGradient(colors: [Color.white.opacity(0.22), Color.clear],
+                                                 center: .init(x: 0.35, y: 0.3), startRadius: 0, endRadius: buttonSize * 0.55))
+                            .frame(width: buttonSize, height: buttonSize)
+                    }
 
                     Circle()
                         .strokeBorder(Color.white.opacity(0.18), lineWidth: 2)
                         .frame(width: buttonSize, height: buttonSize)
 
+                    // Label / multiplier overlay
                     if buttonSize > 110 {
                         VStack(spacing: 2) {
-                            Text("TAP")
-                                .font(.system(size: buttonSize * 0.148, weight: .heavy, design: .rounded))
-                                .foregroundColor(.white)
-                            // Show multiplier inside button when streak active
                             if gameMode == .streak && streakMultiplier > 1 {
                                 Text("×\(streakMultiplier)")
                                     .font(.system(size: buttonSize * 0.1, weight: .heavy, design: .rounded))
                                     .foregroundColor(streakColor)
-                            } else {
+                            } else if !useSkin || skinID == "default" {
+                                Text("TAP")
+                                    .font(.system(size: buttonSize * 0.148, weight: .heavy, design: .rounded))
+                                    .foregroundColor(.white)
                                 Text("ME!")
                                     .font(.system(size: buttonSize * 0.128, weight: .bold, design: .rounded))
                                     .foregroundColor(.white.opacity(0.85))
@@ -859,6 +868,7 @@ struct TapFrenzyView: View {
                 isGameActive = false
                 SoundManager.shared.playGameOver()
                 SoundManager.shared.heavyHaptic()
+                coinStore.convertScore(tapFrenzy: score)
                 scoreStore.updateTapFrenzy(score)
                 if score >= scoreStore.tapFrenzyBest {
                     isNewHighScore = true
@@ -918,7 +928,344 @@ struct TapFrenzyView: View {
     }
 }
 
+// MARK: - Animated skin overlay for the in-game tap button
+
+private struct TapButtonSkinOverlay: View {
+    let skinID: String
+    var body: some View {
+        switch skinID {
+        case "fire":   TapFireOverlay()
+        case "galaxy": TapGalaxyOverlay()
+        case "neon":   TapNeonOverlay()
+        case "gold":   TapGoldOverlay()
+        case "ice":    TapIceOverlay()
+        case "pirate": TapPirateOverlay()
+        default:       EmptyView()
+        }
+    }
+}
+
+// Fire: dense flame particles + ember dots
+private struct TapFireOverlay: View {
+    @State private var particles: [TapFlame] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var glow: Bool = false
+    @State private var isRunning = false
+    private let fast  = Timer.publish(every: 0.09, on: .main, in: .common).autoconnect()
+    private let ember = Timer.publish(every: 0.15, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            Circle().fill(Color(red:1,green:0.3,blue:0).opacity(0.35)).blur(radius: glow ? 20 : 12)
+                .animation(.easeInOut(duration: 0.18).repeatForever(autoreverses: true), value: glow)
+            Circle().fill(RadialGradient(colors:[Color.white.opacity(glow ? 0.4:0.12), Color.clear], center:.center, startRadius:0, endRadius:60))
+                .animation(.easeInOut(duration: 0.12).repeatForever(autoreverses: true), value: glow)
+            ForEach(particles.filter { activeIDs.contains($0.id) }) { p in TapFlameView(p: p) }
+        }
+        .onAppear { isRunning = true; glow = true; for i in 0..<10 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.05) { spawn(false) } } }
+        .onDisappear { isRunning = false }
+        .onReceive(fast)  { _ in if isRunning { spawn(false) } }
+        .onReceive(ember) { _ in if isRunning { spawn(true) } }
+    }
+    private func spawn(_ isEmber: Bool) {
+        let id = Int.random(in: 0..<1_000_000)
+        let p  = TapFlame(id:id, x:CGFloat.random(in:-60...60), drift:CGFloat.random(in:-20...20),
+                          size:isEmber ? CGFloat.random(in:4...8) : CGFloat.random(in:20...44),
+                          dur:Double.random(in:0.45...0.8), isEmber:isEmber)
+        particles.append(p); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + p.dur + 0.1) { activeIDs.remove(id); particles.removeAll { $0.id == id } }
+    }
+}
+private struct TapFlame: Identifiable { let id:Int; let x:CGFloat; let drift:CGFloat; let size:CGFloat; let dur:Double; let isEmber:Bool }
+private struct TapFlameView: View {
+    let p: TapFlame; @State private var y: CGFloat = 30; @State private var x: CGFloat = 0; @State private var opacity: Double = 0
+    var body: some View {
+        Group {
+            if p.isEmber { Circle().fill(RadialGradient(colors:[Color.white,Color.yellow,Color.orange.opacity(0)], center:.center, startRadius:0, endRadius:p.size/2)).frame(width:p.size,height:p.size) }
+            else { Ellipse().fill(RadialGradient(colors:[Color.white.opacity(0.9),Color.yellow.opacity(0.7),Color.orange.opacity(0.4),Color.clear], center:.center, startRadius:0, endRadius:p.size*0.5)).frame(width:p.size*0.6,height:p.size).blur(radius:3) }
+        }
+        .opacity(opacity).offset(x:x, y:y)
+        .onAppear {
+            x = p.x
+            withAnimation(.easeOut(duration:0.08)) { opacity = 0.85 }
+            withAnimation(.easeOut(duration:p.dur)) { y = CGFloat.random(in:-110 ... -55); x = p.x + p.drift }
+            withAnimation(.easeIn(duration:0.25).delay(p.dur*0.65)) { opacity = 0 }
+        }
+    }
+}
+
+// Galaxy: warp stars + spinning accretion disk
+private struct TapGalaxyOverlay: View {
+    @State private var stars: [TapStar] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var diskSpin: Double = 0
+    @State private var isRunning = false
+    private let timer = Timer.publish(every: 0.07, on: .main, in: .common).autoconnect()
+    private let colors: [Color] = [.white, Color(red:0.88,green:0.75,blue:1), Color(red:0.55,green:0.88,blue:1), Color(red:0.65,green:0.45,blue:1)]
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<4) { i in
+                Ellipse().fill(AngularGradient(colors:[Color(red:0.6,green:0.15,blue:1).opacity(0.25),Color.clear], center:.center))
+                    .frame(width:160,height:40).blur(radius:8).rotationEffect(.degrees(diskSpin*0.5 + Double(i)*90))
+            }
+            ForEach(stars.filter { activeIDs.contains($0.id) }) { s in TapStarView(star:s) }
+        }
+        .onAppear { isRunning = true; withAnimation(.linear(duration:6).repeatForever(autoreverses:false)) { diskSpin = 360 }
+            for i in 0..<12 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.06) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(timer) { _ in if isRunning { spawn() } }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000); let spd = Double.random(in: 0.35...0.7)
+        let s  = TapStar(id:id, angle:Double.random(in:0..<360), speed:spd, startR:CGFloat.random(in:2...12), size:CGFloat.random(in:1.5...4.5), color:colors.randomElement()!)
+        stars.append(s); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + spd + 0.1) { activeIDs.remove(id); stars.removeAll { $0.id == id } }
+    }
+}
+private struct TapStar: Identifiable { let id:Int; let angle:Double; let speed:Double; let startR:CGFloat; let size:CGFloat; let color:Color }
+private struct TapStarView: View {
+    let star: TapStar; @State private var progress: CGFloat = 0; @State private var opacity: Double = 0
+    private let endR: CGFloat = 100
+    var body: some View {
+        let rad       = star.angle * Double.pi / 180
+        let cosR      = CGFloat(cos(rad))
+        let sinR      = CGFloat(sin(rad))
+        let tailDist  = star.startR + (endR - star.startR) * progress * 0.72
+        let headDist  = star.startR + (endR - star.startR) * progress
+        let tailW     = max(1, (endR - star.startR) * progress * 0.5)
+        let tailH     = max(0.5, star.size * 0.4)
+        ZStack {
+            Capsule()
+                .fill(LinearGradient(colors: [star.color.opacity(0), star.color.opacity(0.55 * opacity)], startPoint: .leading, endPoint: .trailing))
+                .frame(width: tailW, height: tailH)
+                .offset(x: cosR * tailDist, y: sinR * tailDist)
+                .rotationEffect(.degrees(star.angle))
+            Circle()
+                .fill(RadialGradient(colors: [Color.white, star.color.opacity(0.5), .clear], center: .center, startRadius: 0, endRadius: star.size))
+                .frame(width: star.size * 2, height: star.size * 2)
+                .opacity(opacity)
+                .offset(x: cosR * headDist, y: sinR * headDist)
+        }
+        .onAppear {
+            withAnimation(.easeIn(duration:0.08)) { opacity = 1 }
+            withAnimation(.easeIn(duration:star.speed)) { progress = 1 }
+            withAnimation(.easeOut(duration:0.2).delay(star.speed*0.8)) { opacity = 0 }
+        }
+    }
+}
+
+// Neon: jagged bolts crackling across the button
+private struct TapNeonOverlay: View {
+    @State private var bolts: [TapBolt] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var isRunning = false
+    private let boltTimer  = Timer.publish(every: 0.11, on: .main, in: .common).autoconnect()
+    private let shockTimer = Timer.publish(every: 0.7,  on: .main, in: .common).autoconnect()
+    @State private var shockScale: CGFloat = 1; @State private var shockOpacity: Double = 0
+
+    var body: some View {
+        ZStack {
+            Circle().strokeBorder(Color.cyan.opacity(shockOpacity), lineWidth: 2).scaleEffect(shockScale)
+            ForEach(bolts.filter { activeIDs.contains($0.id) }) { b in TapBoltView(bolt:b) }
+        }
+        .onAppear { isRunning = true; emitShock(); for i in 0..<6 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.08) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(boltTimer)  { _ in if isRunning { spawn() } }
+        .onReceive(shockTimer) { _ in if isRunning { emitShock() } }
+    }
+    private func emitShock() {
+        shockScale = 1; shockOpacity = 0.85
+        withAnimation(.easeOut(duration: 0.65)) { shockScale = 1.4; shockOpacity = 0 }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000); let angle = Double.random(in:0..<360); let rad = angle * .pi / 180
+        let segs = Int.random(in:3...5); var pts = [CGPoint(x:0,y:0)]
+        let len: CGFloat = CGFloat.random(in:40...90); let segLen = len/CGFloat(segs)
+        for seg in 1...segs {
+            let along = segLen*CGFloat(seg); let jag: CGFloat = seg==segs ? 1 : CGFloat.random(in:-14...14)
+            pts.append(CGPoint(x:cos(rad + .pi/2)*jag + cos(rad)*along, y:sin(rad + .pi/2)*jag + sin(rad)*along))
+        }
+        let b = TapBolt(id:id, points:pts, duration:Double.random(in:0.08...0.18), color:Bool.random() ? .white : Color(red:0.4,green:1,blue:1), width:CGFloat.random(in:1...2))
+        bolts.append(b); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + b.duration + 0.05) { activeIDs.remove(id); bolts.removeAll { $0.id == id } }
+    }
+}
+private struct TapBolt: Identifiable { let id:Int; let points:[CGPoint]; let duration:Double; let color:Color; let width:CGFloat }
+private struct TapBoltView: View {
+    let bolt: TapBolt; @State private var opacity: Double = 0
+    var body: some View {
+        ZStack {
+            TapBoltPath(points:bolt.points).stroke(bolt.color.opacity(0.45), lineWidth:bolt.width+4).blur(radius:3).opacity(opacity)
+            TapBoltPath(points:bolt.points).stroke(bolt.color, style:StrokeStyle(lineWidth:bolt.width, lineCap:.round, lineJoin:.round)).opacity(opacity)
+        }
+        .onAppear { opacity = 1; withAnimation(.easeIn(duration:bolt.duration*0.75).delay(bolt.duration*0.25)) { opacity = 0 } }
+    }
+}
+private struct TapBoltPath: Shape {
+    let points: [CGPoint]
+    func path(in rect: CGRect) -> Path {
+        var p = Path(); guard points.count > 1 else { return p }
+        p.move(to: CGPoint(x:rect.midX+points[0].x, y:rect.midY+points[0].y))
+        for pt in points.dropFirst() { p.addLine(to: CGPoint(x:rect.midX+pt.x, y:rect.midY+pt.y)) }
+        return p
+    }
+}
+
+// Gold: rising coins + rotating shine
+private struct TapGoldOverlay: View {
+    @State private var particles: [TapGoldP] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var shineAngle: Double = 0
+    @State private var isRunning = false
+    private let timer = Timer.publish(every: 0.09, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            Capsule().fill(LinearGradient(colors:[Color.clear,Color.white.opacity(0.55),Color.clear], startPoint:.leading, endPoint:.trailing))
+                .frame(width:200, height:4).rotationEffect(.degrees(shineAngle)).blendMode(.screen)
+            ForEach(particles.filter { activeIDs.contains($0.id) }) { p in TapGoldView(p:p) }
+        }
+        .onAppear { isRunning = true; withAnimation(.linear(duration:2.2).repeatForever(autoreverses:false)) { shineAngle = 180 }
+            for i in 0..<8 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.07) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(timer) { _ in if isRunning { spawn() } }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000); let roll = Int.random(in:0..<3)
+        let p  = TapGoldP(id:id, x:CGFloat.random(in:-70...70), size: roll==0 ? CGFloat.random(in:8...14) : CGFloat.random(in:3...7), dur:Double.random(in:0.5...1.0), isCoin:roll==0)
+        particles.append(p); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + p.dur + 0.1) { activeIDs.remove(id); particles.removeAll { $0.id == id } }
+    }
+}
+private struct TapGoldP: Identifiable { let id:Int; let x:CGFloat; let size:CGFloat; let dur:Double; let isCoin:Bool }
+private struct TapGoldView: View {
+    let p: TapGoldP; @State private var y: CGFloat = 20; @State private var opacity: Double = 0; @State private var rotation: Double = 0
+    var body: some View {
+        Group {
+            if p.isCoin {
+                ZStack {
+                    Ellipse().fill(LinearGradient(colors:[Color(red:1,green:0.97,blue:0.45),Color(red:0.88,green:0.62,blue:0)], startPoint:.topLeading, endPoint:.bottomTrailing)).frame(width:p.size*0.65, height:p.size)
+                    Ellipse().strokeBorder(Color(red:0.55,green:0.32,blue:0).opacity(0.5), lineWidth:0.8).frame(width:p.size*0.65, height:p.size)
+                }
+            } else {
+                ZStack { ForEach(0..<4) { i in Capsule().fill(Color.white.opacity(0.9)).frame(width:p.size*1.8,height:1.2).rotationEffect(.degrees(Double(i)*45+rotation)) } }
+            }
+        }
+        .rotationEffect(.degrees(rotation)).opacity(opacity).offset(x:p.x, y:y)
+        .onAppear {
+            withAnimation(.easeOut(duration:0.08)) { opacity = 1 }
+            withAnimation(.easeOut(duration:p.dur)) { y = CGFloat.random(in:-120 ... -55); rotation = Double.random(in:180...540) }
+            withAnimation(.easeIn(duration:0.22).delay(p.dur*0.68)) { opacity = 0 }
+        }
+    }
+}
+
+// Ice: blizzard crystals + snowflake
+private struct TapIceOverlay: View {
+    @State private var particles: [TapIceP] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var snowAngle: Double = 0
+    @State private var isRunning = false
+    private let timer = Timer.publish(every: 0.09, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            ZStack {
+                ForEach(0..<6) { i in
+                    Capsule().fill(Color.white.opacity(0.7)).frame(width:28,height:2).offset(x:14).rotationEffect(.degrees(Double(i)*60+snowAngle))
+                    Capsule().fill(Color.white.opacity(0.5)).frame(width:10,height:1).offset(x:20).rotationEffect(.degrees(Double(i)*60+snowAngle+35))
+                    Capsule().fill(Color.white.opacity(0.5)).frame(width:10,height:1).offset(x:20).rotationEffect(.degrees(Double(i)*60+snowAngle-35))
+                }
+                Circle().fill(Color.white).frame(width:6,height:6).shadow(color:Color(red:0.5,green:0.9,blue:1),radius:4)
+            }
+            ForEach(particles.filter { activeIDs.contains($0.id) }) { p in TapIceView(p:p) }
+        }
+        .onAppear { isRunning = true; withAnimation(.linear(duration:7).repeatForever(autoreverses:false)) { snowAngle = 360 }
+            for i in 0..<10 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.07) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(timer) { _ in if isRunning { spawn() } }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000); let sx = CGFloat.random(in:-80...80); let sy = CGFloat.random(in:-80...80); let drift = CGFloat.random(in:15...30)
+        let p  = TapIceP(id:id, sx:sx, sy:sy, ex:sx+drift, ey:sy+drift, size:CGFloat.random(in:2...6), dur:Double.random(in:0.5...1.0))
+        particles.append(p); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + p.dur + 0.1) { activeIDs.remove(id); particles.removeAll { $0.id == id } }
+    }
+}
+private struct TapIceP: Identifiable { let id:Int; let sx:CGFloat; let sy:CGFloat; let ex:CGFloat; let ey:CGFloat; let size:CGFloat; let dur:Double }
+private struct TapIceView: View {
+    let p: TapIceP; @State private var x: CGFloat = 0; @State private var y: CGFloat = 0; @State private var opacity: Double = 0
+    var body: some View {
+        Circle().fill(Color.white.opacity(0.85)).frame(width:p.size, height:p.size).opacity(opacity).offset(x:x, y:y)
+        .onAppear {
+            x = p.sx; y = p.sy
+            withAnimation(.easeIn(duration:0.1)) { opacity = 0.9 }
+            withAnimation(.linear(duration:p.dur)) { x = p.ex; y = p.ey }
+            withAnimation(.easeOut(duration:0.25).delay(p.dur*0.72)) { opacity = 0 }
+        }
+    }
+}
+
+// Pirate: cannonballs + storm flash
+private struct TapPirateOverlay: View {
+    @State private var cannonballs: [TapCB] = []
+    @State private var activeIDs: Set<Int> = []
+    @State private var stormFlash: Double = 0
+    @State private var isRunning = false
+    private let cbTimer    = Timer.publish(every: 0.5,  on: .main, in: .common).autoconnect()
+    private let stormTimer = Timer.publish(every: 1.6,  on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            Circle().fill(Color(red:0.7,green:0.4,blue:1).opacity(stormFlash)).blendMode(.screen)
+            ForEach(cannonballs.filter { activeIDs.contains($0.id) }) { cb in TapCBView(cb:cb) }
+        }
+        .onAppear { isRunning = true; triggerStorm(); for i in 0..<2 { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)*0.3) { spawn() } } }
+        .onDisappear { isRunning = false }
+        .onReceive(cbTimer)    { _ in if isRunning { spawn() } }
+        .onReceive(stormTimer) { _ in if isRunning { triggerStorm() } }
+    }
+    private func triggerStorm() {
+        stormFlash = 0
+        withAnimation(.easeOut(duration:0.04)) { stormFlash = 0.4 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { withAnimation(.easeOut(duration:0.06)) { stormFlash = 0.05 } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) { withAnimation(.easeOut(duration:0.04)) { stormFlash = 0.3 } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) { withAnimation(.easeIn(duration:0.25)) { stormFlash = 0 } }
+    }
+    private func spawn() {
+        let id = Int.random(in: 0..<1_000_000); let angle = Double.random(in:0..<360); let rad = angle * .pi / 180
+        let cb = TapCB(id:id, sx:cos(rad)*90, sy:sin(rad)*90, angle:angle+180, speed:Double.random(in:0.35...0.6))
+        cannonballs.append(cb); activeIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + cb.speed + 0.1) { activeIDs.remove(id); cannonballs.removeAll { $0.id == id } }
+    }
+}
+private struct TapCB: Identifiable { let id:Int; let sx:CGFloat; let sy:CGFloat; let angle:Double; let speed:Double }
+private struct TapCBView: View {
+    let cb: TapCB; @State private var x: CGFloat = 0; @State private var y: CGFloat = 0; @State private var opacity: Double = 0
+    var body: some View {
+        let rad  = cb.angle * Double.pi / 180
+        let cosR = CGFloat(cos(rad))
+        let sinR = CGFloat(sin(rad))
+        ZStack {
+            Capsule().fill(Color(red:0.5,green:0.4,blue:0.55).opacity(0.4)).frame(width:24,height:3)
+                .rotationEffect(.degrees(cb.angle+90)).blur(radius:1.5)
+                .offset(x: x - cosR * 12, y: y - sinR * 12)
+            Circle().fill(RadialGradient(colors:[Color(red:0.55,green:0.55,blue:0.6),Color(red:0.2,green:0.2,blue:0.22)], center:.init(x:0.35,y:0.3), startRadius:0, endRadius:5))
+                .frame(width:10, height:10).offset(x:x, y:y)
+        }
+        .opacity(opacity)
+        .onAppear {
+            x = cb.sx; y = cb.sy
+            withAnimation(.easeIn(duration:0.08)) { opacity = 1 }
+            withAnimation(.linear(duration:cb.speed)) { x = cb.sx + cosR * 180; y = cb.sy + sinR * 180 }
+            withAnimation(.easeIn(duration:0.2).delay(cb.speed*0.75)) { opacity = 0 }
+        }
+    }
+}
+
 #Preview {
     TapFrenzyView()
         .environmentObject(ScoreStore())
+        .environmentObject(CoinStore())
 }
