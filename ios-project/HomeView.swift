@@ -64,6 +64,17 @@ struct HomeView: View {
                             )
                         }
                         .buttonStyle(CardPressStyle())
+
+                        NavigationLink(destination: QuizView()) {
+                            GameModeCard(
+                                title: "QUIZ RUSH",
+                                description: "Answer trivia. Beat the clock. Chase your streak.",
+                                icon: "questionmark.circle.fill",
+                                accentColor: T.accent,
+                                bestScore: scoreStore.quizRushBest
+                            )
+                        }
+                        .buttonStyle(CardPressStyle())
                     }
                     .padding(.horizontal, 20)
 
