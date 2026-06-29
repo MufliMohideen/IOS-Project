@@ -7,8 +7,9 @@ import SwiftUI
 // MARK: - Theme
 
 private enum T {
-    static let bg       = Color(red: 0.067, green: 0.067, blue: 0.067)
-    static let accent   = Color(red: 0.545, green: 0.361, blue: 0.965)
+    static let bg        = Color(red: 0.067, green: 0.067, blue: 0.067)
+    static let surface   = Color(red: 0.11,  green: 0.11,  blue: 0.118)
+    static let accent    = Color(red: 0.545, green: 0.361, blue: 0.965)
     static let highlight = Color(red: 0.655, green: 0.545, blue: 0.98)
     static let secondary = Color(red: 0.69,  green: 0.69,  blue: 0.69)
 }
@@ -205,13 +206,13 @@ private struct LoadLabel: View {
 struct PreloaderView: View {
     let onComplete: () -> Void
 
-    @State private var logoScale: CGFloat      = 0.6
-    @State private var logoOpacity: Double     = 0
-    @State private var subtitleOpacity: Double = 0
-    @State private var pulseScale: CGFloat     = 1.0
-    @State private var pulseOpacity: Double    = 0.12
-    @State private var loaderOpacity: Double   = 0
-    @State private var loadProgress: Double    = 0.0
+    @State private var logoScale: CGFloat   = 0.72
+    @State private var logoOpacity: Double  = 0
+    @State private var contentOpacity: Double = 0
+    @State private var pulseScale: CGFloat  = 1.0
+    @State private var pulseOpacity: Double = 0.12
+    @State private var loadProgress: Double = 0.0
+    @State private var exiting: Bool        = false
 
     var body: some View {
         ZStack {
@@ -244,50 +245,78 @@ struct PreloaderView: View {
                     .scaleEffect(logoScale)
                     .opacity(logoOpacity)
 
-                Text("READY YOUR FINGERS")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(T.secondary)
-                    .tracking(5)
-                    .opacity(subtitleOpacity)
+                // Subtitle + loader appear together with the title
+                VStack(spacing: 18) {
+                    Text("READY YOUR FINGERS")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(T.secondary)
+                        .tracking(5)
 
-                VStack(spacing: 14) {
-                    TapRippleLoader()
-                    LoadLabel(progress: loadProgress)
+                    VStack(spacing: 14) {
+                        TapRippleLoader()
+                        LoadLabel(progress: loadProgress)
+                    }
+                    .padding(.top, 4)
+
+                    // Progress bar
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(T.surface)
+                                .frame(height: 3)
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [T.accent, T.highlight],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geo.size.width * loadProgress, height: 3)
+                                .animation(.easeOut(duration: 0.3), value: loadProgress)
+                        }
+                    }
+                    .frame(height: 3)
+                    .padding(.horizontal, 32)
                 }
-                .opacity(loaderOpacity)
-                .padding(.top, 12)
+                .opacity(contentOpacity)
+                .padding(.top, 8)
             }
         }
+        .opacity(exiting ? 0 : 1)
+        .scaleEffect(exiting ? 1.04 : 1.0)
         .onAppear {
-            withAnimation(.spring(response: 0.7, dampingFraction: 0.65)) {
-                logoScale   = 1.0
-                logoOpacity = 1.0
+            // Title + all content appear together, fast
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) {
+                logoScale      = 1.0
+                logoOpacity    = 1.0
+                contentOpacity = 1.0
             }
             withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
                 pulseScale   = 1.15
                 pulseOpacity = 0.22
             }
-            withAnimation(.easeIn(duration: 0.5).delay(0.55)) {
-                subtitleOpacity = 1.0
-            }
-            withAnimation(.easeIn(duration: 0.4).delay(0.7)) {
-                loaderOpacity = 1.0
-            }
             simulateLoad()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
-                onComplete()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                // Smooth push-forward exit before calling onComplete
+                withAnimation(.easeIn(duration: 0.35)) {
+                    exiting = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+                    onComplete()
+                }
             }
         }
     }
 
     private func simulateLoad() {
         let steps: [(Double, Double)] = [
-            (0.40, 0.18), (0.70, 0.42), (1.00, 0.61),
-            (1.30, 0.78), (1.65, 0.92), (2.00, 1.00)
+            (0.15, 0.22), (0.40, 0.48), (0.70, 0.65),
+            (1.00, 0.82), (1.35, 0.94), (1.70, 1.00)
         ]
         for (delay, target) in steps {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                withAnimation(.easeOut(duration: 0.25)) { loadProgress = target }
+                withAnimation(.easeOut(duration: 0.28)) { loadProgress = target }
             }
         }
     }
